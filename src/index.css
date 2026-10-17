@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #0A3D3A;
+    --color-secondary: #6A161C;
+    --color-accent: #C8AA69;
+    --color-ivory: #FAECD8;
+    --color-charcoal: #303B35;
+    color: var(--color-charcoal);
+    background: var(--color-ivory);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Accessible focus indicators */
+  :focus-visible {
+    outline: 2px solid #C8AA69;
+    outline-offset: 2px;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #FAECD8;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #0A3D3A;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0D1C20;
+  }
+}
+
+.font-malayalam {
+  font-family: 'Plus Jakarta Sans', 'Chilanka', 'Noto Sans Malayalam', 'Manjari', system-ui, sans-serif;
+  letter-spacing: normal;
+  line-height: 1.7;
+}
+
+.font-malayalam :not(.font-serif):not(.font-mono) {
+  font-family: 'Plus Jakarta Sans', 'Chilanka', 'Noto Sans Malayalam', 'Manjari', system-ui, sans-serif;
+}
+
+.font-malayalam .font-serif {
+  font-family: 'Cinzel', Georgia, 'Chilanka', 'Noto Sans Malayalam', 'Manjari', serif;
+}
+
+.font-malayalam .font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'Chilanka', 'Noto Sans Malayalam', 'Manjari', monospace;
+}
+
+.font-malayalam :is(h1, h2, h3, h4) {
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+.font-malayalam :is(p, li) {
+  line-height: 1.7;
+}
+
+.font-malayalam :is(.tracking-tight, .tracking-wide, .tracking-wider, .tracking-widest) {
+  letter-spacing: normal;
+}
+
+.snowfall-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero-photo-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, rgba(13, 28, 32, 0.78) 0%, rgba(10, 61, 58, 0.5) 48%, rgba(13, 28, 32, 0.78) 100%),
+    linear-gradient(rgba(13, 28, 32, 0.18), rgba(13, 28, 32, 0.38)),
+    var(--hero-photo);
+  background-position: center 48%;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.snowflake {
+  position: absolute;
+  top: -1rem;
+  border-radius: 50%;
+  background: #FAECD8;
+  box-shadow: 0 0 5px rgba(250, 236, 216, 0.4);
+  animation: snow-drift linear infinite;
+  will-change: transform;
+}
+
+.fairy-light {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #E8C782;
+  animation: fairy-glow 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 700ms ease, transform 700ms ease;
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes snow-drift {
+  from { transform: translate3d(0, -5vh, 0); }
+  to { transform: translate3d(var(--drift), 110vh, 0); }
+}
+
+@keyframes fairy-glow {
+  0%, 100% { opacity: 0.4; box-shadow: 0 0 5px rgba(232, 199, 130, 0.35); }
+  50% { opacity: 1; box-shadow: 0 0 12px rgba(232, 199, 130, 0.8); }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .snowflake,
+  .fairy-light {
+    display: none;
+  }
+
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-photo-overlay {
+    background-image:
+      linear-gradient(rgba(13, 28, 32, 0.76), rgba(13, 28, 32, 0.84)),
+      var(--hero-photo);
+    background-position: center 48%;
+  }
+}
+
+/* Print stylesheet for church notice board official results printout */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-page-break {
+    page-break-after: always;
+  }
+  .print-card {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+  }
+}

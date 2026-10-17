@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+  <title id="title">Three trays of eggs</title>
+  <desc id="desc">Three separate molded egg trays, each holding rows of eggs.</desc>
+  <defs>
+    <linearGradient id="background" x2="0" y2="1">
+      <stop stop-color="#e7ddc9"/>
+      <stop offset="1" stop-color="#c8b99f"/>
+    </linearGradient>
+    <linearGradient id="pulp" x2="0" y2="1">
+      <stop stop-color="#c9a97d"/>
+      <stop offset="1" stop-color="#94734f"/>
+    </linearGradient>
+    <radialGradient id="egg" cx=".35" cy=".25" r=".8">
+      <stop stop-color="#fffef4"/>
+      <stop offset=".72" stop-color="#f3e8cf"/>
+      <stop offset="1" stop-color="#d7c6a4"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#30251a" flood-opacity=".28"/>
+    </filter>
+    <g id="tray">
+      <rect width="250" height="390" rx="24" fill="url(#pulp)" stroke="#765b3e" stroke-width="5"/>
+      <path d="M14 24h222M14 366h222" stroke="#dfc49b" stroke-opacity=".55" stroke-width="5"/>
+      <g fill="url(#egg)" stroke="#d4c19d" stroke-width="2">
+        <ellipse cx="43" cy="70" rx="24" ry="30"/><ellipse cx="105" cy="70" rx="24" ry="30"/><ellipse cx="167" cy="70" rx="24" ry="30"/><ellipse cx="219" cy="70" rx="20" ry="30"/>
+        <ellipse cx="43" cy="155" rx="24" ry="30"/><ellipse cx="105" cy="155" rx="24" ry="30"/><ellipse cx="167" cy="155" rx="24" ry="30"/><ellipse cx="219" cy="155" rx="20" ry="30"/>
+        <ellipse cx="43" cy="240" rx="24" ry="30"/><ellipse cx="105" cy="240" rx="24" ry="30"/><ellipse cx="167" cy="240" rx="24" ry="30"/><ellipse cx="219" cy="240" rx="20" ry="30"/>
+        <ellipse cx="43" cy="325" rx="24" ry="30"/><ellipse cx="105" cy="325" rx="24" ry="30"/><ellipse cx="167" cy="325" rx="24" ry="30"/><ellipse cx="219" cy="325" rx="20" ry="30"/>
+      </g>
+    </g>
+  </defs>
+  <rect width="900" height="600" fill="url(#background)"/>
+  <path d="M0 488c160-54 286-48 450 0s287 51 450-4v116H0z" fill="#bca98c" opacity=".45"/>
+  <g filter="url(#shadow)" transform="translate(45 105) rotate(-4 125 195)"><use href="#tray"/></g>
+  <g filter="url(#shadow)" transform="translate(325 95)"><use href="#tray"/></g>
+  <g filter="url(#shadow)" transform="translate(605 105) rotate(4 125 195)"><use href="#tray"/></g>
+</svg>
