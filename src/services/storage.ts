@@ -9,6 +9,10 @@ const STORAGE_KEYS = {
   PRIZE_CATALOG_MIGRATION: 'kcym_prize_catalog_v2_migration_v1',
   HOME_THEATER_IMAGE_MIGRATION: 'kcym_home_theater_image_migration_v1',
   BEEF_IMAGE_MIGRATION: 'kcym_beef_image_migration_v1',
+  AIR_FRYER_IMAGE_MIGRATION: 'kcym_air_fryer_image_migration_v1',
+  EGG_IMAGE_MIGRATION: 'kcym_egg_image_migration_v1',
+  DUCK_IMAGE_MIGRATION: 'kcym_duck_image_migration_v1',
+  PRESSURE_WASHER_IMAGE_MIGRATION: 'kcym_pressure_washer_image_migration_v1',
   WINNERS: 'kcym_winners_v1', // Only accessible when published or by admin
   AUDIT_LOGS: 'kcym_audit_logs_v1',
   ADMIN_SESSION: 'kcym_admin_session_v1',
@@ -254,6 +258,46 @@ export function getPrizes(): Prize[] {
           );
           localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
           localStorage.setItem(STORAGE_KEYS.BEEF_IMAGE_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.AIR_FRYER_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-4'
+              ? { ...prize, imageUrl: '/images/prizes/air-fryer.webp' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.AIR_FRYER_IMAGE_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.EGG_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-8'
+              ? { ...prize, imageUrl: '/images/prizes/egg.avif' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.EGG_IMAGE_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.DUCK_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-7'
+              ? { ...prize, imageUrl: '/images/prizes/duck.webp' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.DUCK_IMAGE_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.PRESSURE_WASHER_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-5'
+              ? { ...prize, imageUrl: '/images/prizes/pressure-washer.jpg' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.PRESSURE_WASHER_IMAGE_MIGRATION, 'complete');
         }
 
         return prizes.sort((a, b) => a.orderIndex - b.orderIndex);

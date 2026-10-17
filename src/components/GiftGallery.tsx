@@ -19,13 +19,6 @@ const imageCredits = [
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
   {
-    title: 'Air Fryer 2020',
-    author: 'I am R.',
-    file: 'Air_Fryer_2020.jpg',
-    license: 'CC BY 2.0',
-    licenseUrl: 'https://creativecommons.org/licenses/by/2.0/',
-  },
-  {
     title: 'Karcher pressure washer K MINI',
     author: 'Mosatsu',
     file: 'Karcher_pressure_washer_K_MINI.webp',
