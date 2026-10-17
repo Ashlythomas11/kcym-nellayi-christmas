@@ -10,7 +10,7 @@ export const translations = {
     },
     badge: {
       official: 'Official KCYM Prize Coupon 2026',
-      parish: "St. Mary's Forane Church, Nellayi",
+      parish: "St. Mary's Church, Nellayi",
       drawDate: 'Draw Date: Dec 25, 2026 (12:00 AM IST)',
       price: 'Coupon Contribution: ₹50',
     },
@@ -101,7 +101,7 @@ export const translations = {
     },
     badge: {
       official: 'ഔദ്യോഗിക KCYM ക്രിസ്മസ് ഭാഗ്യക്കുറി 2026',
-      parish: 'സെന്റ് മേരീസ് ഫൊറോന പള്ളി, നെല്ലായി',
+      parish: 'സെന്റ് മേരീസ് പള്ളി, നെല്ലായി',
       drawDate: 'നറുക്കെടുപ്പ്: 2026 ഡിസംബർ 25 (അർദ്ധരാത്രി 12:00 IST)',
       price: 'കൂപ്പൺ സംഭാവന: ₹50',
     },

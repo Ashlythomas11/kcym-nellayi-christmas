@@ -70,10 +70,10 @@ export const NoticeBoardPrint: React.FC<NoticeBoardPrintProps> = ({
               <span>Kerala Catholic Youth Movement</span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-black tracking-wide text-black uppercase">
-              KCYM • ST. MARY'S FORANE CHURCH, NELLAYI
+              KCYM • ST. MARY'S CHURCH, NELLAYI
             </h1>
             <p className="text-xs text-gray-700">
-              Nellayi P.O., Thrissur District, Kerala - 680305 | Tel: {drawSettings.contactPhone}
+              Nellayi P.O., Thrissur District, Kerala - 680305
             </p>
             <div className="pt-2">
               <span className="inline-block bg-black text-white px-4 py-1 text-xs font-bold uppercase tracking-wider rounded">
@@ -143,7 +143,7 @@ export const NoticeBoardPrint: React.FC<NoticeBoardPrintProps> = ({
           <div className="grid grid-cols-3 gap-6 pt-12 text-center text-xs">
             <div className="border-t border-black pt-2">
               <p className="font-bold">Parish Vicar</p>
-              <p className="text-[10px] text-gray-600">St. Mary's Forane Church, Nellayi</p>
+              <p className="text-[10px] text-gray-600">St. Mary's Church, Nellayi</p>
             </div>
             <div className="border-t border-black pt-2">
               <p className="font-bold">KCYM President</p>

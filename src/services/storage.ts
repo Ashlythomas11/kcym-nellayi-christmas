@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   PRIZES: 'kcym_prizes_v1',
   SPONSOR_MIGRATION: 'kcym_bad_boy_sponsor_migration_v1',
   PRIZE_CATALOG_MIGRATION: 'kcym_prize_catalog_v2_migration_v1',
+  HOME_THEATER_IMAGE_MIGRATION: 'kcym_home_theater_image_migration_v1',
+  BEEF_IMAGE_MIGRATION: 'kcym_beef_image_migration_v1',
   WINNERS: 'kcym_winners_v1', // Only accessible when published or by admin
   AUDIT_LOGS: 'kcym_audit_logs_v1',
   ADMIN_SESSION: 'kcym_admin_session_v1',
@@ -232,6 +234,26 @@ export function getPrizes(): Prize[] {
           prizes = [...correctedPrizes, ...additionalPrizes];
           localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
           localStorage.setItem(STORAGE_KEYS.PRIZE_CATALOG_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.HOME_THEATER_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-2'
+              ? { ...prize, imageUrl: '/images/prizes/Premium%20Home%20Theater%20Showcase.png' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.HOME_THEATER_IMAGE_MIGRATION, 'complete');
+        }
+
+        if (!localStorage.getItem(STORAGE_KEYS.BEEF_IMAGE_MIGRATION)) {
+          prizes = prizes.map((prize) =>
+            prize.id === 'prize-6'
+              ? { ...prize, imageUrl: '/images/prizes/beef.png' }
+              : prize,
+          );
+          localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(prizes));
+          localStorage.setItem(STORAGE_KEYS.BEEF_IMAGE_MIGRATION, 'complete');
         }
 
         return prizes.sort((a, b) => a.orderIndex - b.orderIndex);
