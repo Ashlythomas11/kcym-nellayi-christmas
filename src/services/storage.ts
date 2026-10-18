@@ -457,9 +457,20 @@ function isPrize(value: unknown): value is Prize {
     && typeof prize.orderIndex === 'number';
 }
 
+function normalizePrizeRows(value: unknown): unknown[] {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = [];
+    }
+  }
+  return Array.isArray(parsed) ? parsed : [];
+}
+
 function getWinnersFromPrizeRows(value: unknown): Winner[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry: unknown) => {
+  return normalizePrizeRows(value).flatMap((entry: unknown) => {
     if (typeof entry !== 'object' || entry === null || !('winner' in entry) || entry.winner == null) return [];
     try {
       return parseCloudWinners([entry.winner]);
@@ -478,10 +489,14 @@ function withWinnersInPrizes(prizes: Prize[], winners: Winner[]): Array<Prize & 
 }
 
 function parsePrizes(value: unknown): Prize[] {
-  if (!Array.isArray(value) || !value.every(isPrize)) {
+  const parsedPrizes = normalizePrizeRows(value);
+  if (parsedPrizes.length === 0) {
+    return INITIAL_PRIZES;
+  }
+  if (!parsedPrizes.every(isPrize)) {
     throw new Error('Supabase returned invalid draw_settings.prizes data.');
   }
-  return value
+  return parsedPrizes
     .map((entry) => {
       const { winner: _winner, ...prize } = entry as Prize & { winner?: Winner };
       return prize;
@@ -508,11 +523,11 @@ export async function fetchPrizesFromSupabase(isAdmin = false): Promise<Prize[] 
     throw new Error(`Unable to fetch prizes from draw_settings row 1: ${error.message}`);
   }
   if (!data) return null;
-  if (data.prizes === null) return null;
 
   const prizes = parsePrizes(data.prizes);
+  const prizeRows = normalizePrizeRows(data.prizes);
   try {
-    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(getWinnersFromPrizeRows(data.prizes)));
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(getWinnersFromPrizeRows(prizeRows)));
   } catch (error) {
     console.warn('Prizes were loaded from Supabase, but the local winner cache could not be updated:', error);
   }
