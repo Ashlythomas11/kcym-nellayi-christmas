@@ -23,34 +23,61 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
     contact_email TEXT DEFAULT 'kcymnellayi@gmail.com',
     church_address TEXT DEFAULT 'St. Mary''s Church, Nellayi P.O., Thrissur - 680305, Kerala',
     coupon_price TEXT DEFAULT '₹50',
-    prizes JSONB,
+    prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
+    winners JSONB NOT NULL DEFAULT '[]'::jsonb,
     CONSTRAINT single_row_check CHECK (id = 1)
 );
-ALTER TABLE public.draw_settings ADD COLUMN IF NOT EXISTS prizes JSONB;
+ALTER TABLE public.draw_settings
+    ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS winners JSONB NOT NULL DEFAULT '[]'::jsonb;
 
--- 3. Create Winners Table (Prize-to-Winner Association)
-CREATE TABLE IF NOT EXISTS public.winners (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    prize_id UUID,
-    prize_rank INT,
-    winning_coupon_number TEXT NOT NULL UNIQUE,
-    winner_name TEXT NOT NULL,
-    winner_location TEXT,
-    verified_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-ALTER TABLE public.winners ADD COLUMN IF NOT EXISTS prize_rank INT;
-ALTER TABLE public.winners DROP CONSTRAINT IF EXISTS winners_prize_id_fkey;
-ALTER TABLE public.winners ALTER COLUMN prize_id DROP NOT NULL;
-
+-- Migrate existing winner rows once when the legacy tables are present.
 DO $$
 BEGIN
     IF to_regclass('public.prizes') IS NOT NULL THEN
-        UPDATE public.winners AS winner
-        SET prize_rank = prize.rank
-        FROM public.prizes AS prize
-        WHERE winner.prize_rank IS NULL
-          AND winner.prize_id = prize.id;
+        EXECUTE $prizes_migration$
+            UPDATE public.draw_settings AS settings
+            SET prizes = (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                    'id', 'prize-' || prize.rank,
+                    'rank', prize.rank,
+                    'title', prize.title,
+                    'title_ml', prize.title_ml,
+                    'category', prize.category,
+                    'categoryLabel', prize.category_label,
+                    'categoryLabel_ml', prize.category_label_ml,
+                    'imageUrl', prize.image_url,
+                    'description', prize.description,
+                    'description_ml', prize.description_ml,
+                    'sponsor', prize.sponsor,
+                    'sponsor_ml', prize.sponsor_ml,
+                    'orderIndex', prize.order_index,
+                    'badge', prize.badge,
+                    'badge_ml', prize.badge_ml
+                ) ORDER BY prize.order_index), '[]'::jsonb)
+                FROM public.prizes AS prize
+            )
+            WHERE settings.id = 1 AND settings.prizes = '[]'::jsonb
+        $prizes_migration$;
+    END IF;
+    IF to_regclass('public.winners') IS NOT NULL AND to_regclass('public.prizes') IS NOT NULL THEN
+        EXECUTE $migration$
+            UPDATE public.draw_settings AS settings
+            SET winners = (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                    'id', winner.id::text,
+                    'prizeId', 'prize-' || prize.rank,
+                    'winningCouponNumber', winner.winning_coupon_number,
+                    'winnerName', winner.winner_name,
+                    'winnerLocation', winner.winner_location,
+                    'verifiedAt', winner.verified_at,
+                    'createdAt', winner.created_at
+                ) ORDER BY prize.rank), '[]'::jsonb)
+                FROM public.winners AS winner
+                JOIN public.prizes AS prize ON prize.id = winner.prize_id
+            )
+            WHERE settings.id = 1 AND settings.winners = '[]'::jsonb
+        $migration$;
     END IF;
 END
 $$;
@@ -81,7 +108,6 @@ GRANT SELECT ON TABLE public.admin_usernames TO service_role;
 -- =========================================================================
 
 ALTER TABLE public.draw_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.winners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Draw Settings Policies:
@@ -100,49 +126,91 @@ CREATE POLICY "Admins can update draw settings"
     USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
     WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
 
+-- Public roles can read settings and prizes, but not the unpublished winners JSON.
+REVOKE SELECT ON TABLE public.draw_settings FROM PUBLIC, anon;
+GRANT SELECT (
+    id, draw_date_ist, timezone, is_published, published_at, published_by,
+    draw_venue, draw_venue_ml, hero_headline, hero_headline_ml,
+    hero_subtitle, hero_subtitle_ml, announcement_text, announcement_text_ml,
+    contact_phone, contact_email, church_address,
+    coupon_price, prizes
+) ON TABLE public.draw_settings TO anon;
+REVOKE SELECT (winners) ON TABLE public.draw_settings FROM PUBLIC, anon;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.draw_settings TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.draw_settings_publication (
+    id INT PRIMARY KEY,
+    is_published BOOLEAN NOT NULL DEFAULT false,
+    winners JSONB NOT NULL DEFAULT '[]'::jsonb
+);
+ALTER TABLE public.draw_settings_publication ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can view published draw state" ON public.draw_settings_publication;
+CREATE POLICY "Public can view published draw state"
+    ON public.draw_settings_publication FOR SELECT TO anon, authenticated
+    USING (true);
+REVOKE ALL ON TABLE public.draw_settings_publication FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.draw_settings_publication TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.sync_public_draw_settings()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    INSERT INTO public.draw_settings_publication (id, is_published, winners)
+    VALUES (
+        NEW.id,
+        NEW.is_published,
+        CASE WHEN NEW.is_published THEN NEW.winners ELSE '[]'::jsonb END
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        is_published = EXCLUDED.is_published,
+        winners = EXCLUDED.winners;
+    RETURN NEW;
+END
+$$;
+REVOKE ALL ON FUNCTION public.sync_public_draw_settings() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS sync_public_draw_settings ON public.draw_settings;
+CREATE TRIGGER sync_public_draw_settings
+    AFTER INSERT OR UPDATE ON public.draw_settings
+    FOR EACH ROW EXECUTE FUNCTION public.sync_public_draw_settings();
+
+INSERT INTO public.draw_settings_publication (id, is_published, winners)
+SELECT id, is_published, CASE WHEN is_published THEN winners ELSE '[]'::jsonb END
+FROM public.draw_settings
+WHERE id = 1
+ON CONFLICT (id) DO UPDATE SET
+    is_published = EXCLUDED.is_published,
+    winners = EXCLUDED.winners;
+
+CREATE OR REPLACE VIEW public.published_draw_settings AS
+SELECT id, is_published, winners
+FROM public.draw_settings_publication
+WHERE id = 1;
+GRANT SELECT ON public.published_draw_settings TO anon, authenticated;
+
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1
         FROM pg_publication_tables
         WHERE pubname = 'supabase_realtime'
           AND schemaname = 'public'
           AND tablename = 'draw_settings'
     ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.draw_settings;
+        ALTER PUBLICATION supabase_realtime DROP TABLE public.draw_settings;
     END IF;
     IF NOT EXISTS (
-        SELECT 1
-        FROM pg_publication_tables
-        WHERE pubname = 'supabase_realtime'
-          AND schemaname = 'public'
-          AND tablename = 'winners'
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public'
+          AND tablename = 'draw_settings_publication'
     ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.winners;
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.draw_settings_publication;
     END IF;
 END
 $$;
-
--- Winners Policies:
--- Public can ONLY view winners if the draw has been officially published!
-DROP POLICY IF EXISTS "Public can only view published winners" ON public.winners;
-DROP POLICY IF EXISTS "Admins have full access to winners" ON public.winners;
-CREATE POLICY "Public can only view published winners"
-    ON public.winners FOR SELECT
-    TO anon
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.draw_settings
-            WHERE id = 1 AND is_published = true
-        )
-    );
-
--- Admins can view and manage winners at all times (including draft preview)
-CREATE POLICY "Admins have full access to winners"
-    ON public.winners FOR ALL
-    TO authenticated
-    USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
-    WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
 
 -- Audit Log Policies:
 -- Only authenticated administrators can view or append audit logs
@@ -183,3 +251,5 @@ CREATE POLICY "Admins can delete prize photos"
         bucket_id = 'prize-images'
         AND (auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer')
     );
+
+NOTIFY pgrst, 'reload schema';

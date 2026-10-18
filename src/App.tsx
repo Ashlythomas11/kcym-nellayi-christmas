@@ -17,7 +17,6 @@ import {
   fetchPrizesFromSupabase,
   fetchWinnersFromSupabase,
   getDrawSettings,
-  mapDrawSettingsRow,
   getPrizes,
   getWinners,
   getAuditLogs,
@@ -63,7 +62,7 @@ export function App() {
         .catch((error) => console.error('Unable to refresh the prize catalog:', error));
     }
     if (hasLoadedCloudSettings.current && (s.isPublished || adminUser)) {
-      void fetchWinnersFromSupabase()
+      void fetchWinnersFromSupabase(Boolean(adminUser))
         .then((cloudWinners) => {
           if (!cloudWinners) return;
           hasLoadedCloudWinners.current = true;
@@ -99,50 +98,34 @@ export function App() {
           .channel('public-draw-settings')
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'draw_settings', filter: 'id=eq.1' },
-            (payload) => {
-              if (!isActive || !payload.new || Object.keys(payload.new).length === 0) return;
-              hasLoadedCloudSettings.current = true;
-              const settings = mapDrawSettingsRow(payload.new);
-              setDrawSettings(settings);
-              void fetchPrizesFromSupabase()
-                .then((cloudPrizes) => {
-                  if (!isActive || !cloudPrizes) return;
-                  hasLoadedCloudPrizes.current = true;
-                  setPrizes(cloudPrizes);
-                })
-                .catch((error) => console.error('Unable to refresh the prize catalog:', error));
-              if (settings.isPublished || adminUserRef.current) {
-                void fetchWinnersFromSupabase()
-                  .then((cloudWinners) => {
-                    if (!isActive || !cloudWinners) return;
+            { event: '*', schema: 'public', table: 'draw_settings_publication', filter: 'id=eq.1' },
+            () => {
+              void Promise.all([
+                fetchDrawSettingsFromSupabase(),
+                fetchPrizesFromSupabase(),
+                fetchWinnersFromSupabase(Boolean(adminUserRef.current)),
+              ])
+                .then(([settings, cloudPrizes, cloudWinners]) => {
+                  if (!isActive) return;
+                  if (settings) {
+                    hasLoadedCloudSettings.current = true;
+                    setDrawSettings(settings);
+                  }
+                  if (cloudPrizes) {
+                    hasLoadedCloudPrizes.current = true;
+                    setPrizes(cloudPrizes);
+                  }
+                  if (cloudWinners) {
                     hasLoadedCloudWinners.current = true;
                     setWinners(cloudWinners);
-                  })
-                  .catch((error) => console.error('Unable to refresh published winners:', error));
-              } else {
-                hasLoadedCloudWinners.current = false;
-                setWinners([]);
-              }
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'winners' },
-            () => {
-              if (!isActive || (!adminUserRef.current && !hasLoadedCloudSettings.current)) return;
-              void fetchWinnersFromSupabase()
-                .then((cloudWinners) => {
-                  if (!isActive || !cloudWinners) return;
-                  hasLoadedCloudWinners.current = true;
-                  setWinners(cloudWinners);
+                  }
                 })
-                .catch((error) => console.error('Unable to refresh winning coupons:', error));
+                .catch((error) => console.error('Unable to refresh published draw data:', error));
             }
           )
           .subscribe((status, error) => {
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              console.error('Live draw settings subscription failed:', error || status);
+              console.error('Live published-results subscription failed:', error || status);
             }
           });
 
@@ -218,7 +201,7 @@ export function App() {
     adminUserRef.current = user;
     setAdminUser(user);
     setCurrentView('admin-dashboard');
-    void fetchWinnersFromSupabase()
+    void fetchWinnersFromSupabase(true)
       .then((cloudWinners) => {
         if (cloudWinners) {
           hasLoadedCloudWinners.current = true;
@@ -250,7 +233,7 @@ export function App() {
       setWinners([]);
       if (drawSettings.isPublished) {
         try {
-          const cloudWinners = await fetchWinnersFromSupabase();
+          const cloudWinners = await fetchWinnersFromSupabase(false);
           if (cloudWinners) {
             hasLoadedCloudWinners.current = true;
             setWinners(cloudWinners);
