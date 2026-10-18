@@ -101,27 +101,32 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
 
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseClient();
-    if (supabase) {
-      await supabase.from('draw_settings').upsert({
-        id: 1,
-        draw_date_ist: updated.drawDateIST,
-        timezone: updated.timezone,
-        is_published: updated.isPublished,
-        published_at: updated.publishedAt,
-        published_by: updated.publishedBy,
-        draw_venue: updated.drawVenue,
-        draw_venue_ml: updated.drawVenue_ml,
-        hero_headline: updated.heroHeadline,
-        hero_headline_ml: updated.heroHeadline_ml,
-        hero_subtitle: updated.heroSubtitle,
-        hero_subtitle_ml: updated.heroSubtitle_ml,
-        announcement_text: updated.announcementText,
-        announcement_text_ml: updated.announcementText_ml,
-        contact_phone: updated.contactPhone,
-        contact_email: updated.contactEmail,
-        church_address: updated.churchAddress,
-        coupon_price: updated.couponPrice,
-      });
+    if (!supabase) {
+      throw new Error('Settings were saved in this browser, but the cloud database could not be initialized.');
+    }
+
+    const { error } = await supabase.from('draw_settings').upsert({
+      id: 1,
+      draw_date_ist: updated.drawDateIST,
+      timezone: updated.timezone,
+      is_published: updated.isPublished,
+      published_at: updated.publishedAt,
+      published_by: updated.publishedBy,
+      draw_venue: updated.drawVenue,
+      draw_venue_ml: updated.drawVenue_ml,
+      hero_headline: updated.heroHeadline,
+      hero_headline_ml: updated.heroHeadline_ml,
+      hero_subtitle: updated.heroSubtitle,
+      hero_subtitle_ml: updated.heroSubtitle_ml,
+      announcement_text: updated.announcementText,
+      announcement_text_ml: updated.announcementText_ml,
+      contact_phone: updated.contactPhone,
+      contact_email: updated.contactEmail,
+      church_address: updated.churchAddress,
+      coupon_price: updated.couponPrice,
+    });
+    if (error) {
+      throw new Error(`Settings were saved in this browser, but cloud sync failed: ${error.message}`);
     }
   }
 

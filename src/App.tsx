@@ -51,6 +51,59 @@ export function App() {
     return () => window.removeEventListener(DATA_CHANGE_EVENT, reloadData);
   }, [reloadData]);
 
+  // Load the shared settings after the local fallback so the page renders immediately.
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let isActive = true;
+
+    const loadDrawSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('draw_settings')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Unable to load live draw settings; using local settings:', error);
+          return;
+        }
+        if (!data || !isActive) return;
+
+        const fallback = getDrawSettings();
+        setDrawSettings({
+          ...fallback,
+          drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : fallback.drawDateIST,
+          timezone: typeof data.timezone === 'string' ? data.timezone : fallback.timezone,
+          isPublished: typeof data.is_published === 'boolean' ? data.is_published : fallback.isPublished,
+          publishedAt: typeof data.published_at === 'string' ? data.published_at : null,
+          publishedBy: typeof data.published_by === 'string' ? data.published_by : null,
+          drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : fallback.drawVenue,
+          drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : fallback.drawVenue_ml,
+          heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : fallback.heroHeadline,
+          heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : fallback.heroHeadline_ml,
+          heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : fallback.heroSubtitle,
+          heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : fallback.heroSubtitle_ml,
+          announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : fallback.announcementText,
+          announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : fallback.announcementText_ml,
+          contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : fallback.contactPhone,
+          contactEmail: typeof data.contact_email === 'string' ? data.contact_email : fallback.contactEmail,
+          churchAddress: typeof data.church_address === 'string' ? data.church_address : fallback.churchAddress,
+          couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : fallback.couponPrice,
+        });
+      } catch (error) {
+        console.error('Unable to load live draw settings; using local settings:', error);
+      }
+    };
+
+    void loadDrawSettings();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   // Handle URL parameters (QR code deep linking)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

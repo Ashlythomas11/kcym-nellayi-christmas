@@ -20,17 +20,34 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
   const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
   const [unpublishReason, setUnpublishReason] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const handleFormChange = (key: keyof DrawSettings, val: string) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await updateDrawSettings(formData, adminUser.email);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
-    onRefresh();
+    setSaveError('');
+    if (!e.currentTarget.reportValidity()) {
+      setSaveError('Please correct the highlighted fields before saving.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateDrawSettings(formData, adminUser.email);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to save draw settings:', error);
+      setSaveError(error instanceof Error ? error.message : 'Unable to save configuration. Please try again.');
+      onRefresh();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleConfirmPublish = async () => {
@@ -109,7 +126,7 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
       </div>
 
       {/* Settings Form */}
-      <form onSubmit={handleSaveSettings} className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
+      <form noValidate onSubmit={handleSaveSettings} className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
         <div className="flex items-center justify-between border-b pb-4">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-christmas-emerald" />
@@ -125,6 +142,12 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
             </span>
           )}
         </div>
+
+        {saveError && (
+          <div role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            {saveError}
+          </div>
+        )}
 
         {/* Date & Time (IST) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -246,10 +269,11 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
         <div className="pt-4 border-t flex justify-end">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-sm flex items-center gap-2 shadow"
+            disabled={isSaving}
+            className="px-6 py-2.5 rounded-xl bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-sm flex items-center gap-2 shadow disabled:cursor-wait disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
-            <span>Save Configuration</span>
+            <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
           </button>
         </div>
       </form>
