@@ -22,6 +22,7 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [workflowError, setWorkflowError] = useState('');
 
   const handleFormChange = (key: keyof DrawSettings, val: string) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
@@ -50,16 +51,28 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
   };
 
   const handleConfirmPublish = async () => {
-    await publishResults(adminUser.email);
-    setShowPublishConfirm(false);
-    onRefresh();
+    setWorkflowError('');
+    try {
+      await publishResults(adminUser.email);
+      setShowPublishConfirm(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to publish results:', error);
+      setWorkflowError(error instanceof Error ? error.message : 'Unable to publish results.');
+    }
   };
 
   const handleConfirmUnpublish = async () => {
-    await unpublishResults(adminUser.email, unpublishReason);
-    setShowUnpublishConfirm(false);
-    setUnpublishReason('');
-    onRefresh();
+    setWorkflowError('');
+    try {
+      await unpublishResults(adminUser.email, unpublishReason);
+      setShowUnpublishConfirm(false);
+      setUnpublishReason('');
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to unpublish results:', error);
+      setWorkflowError(error instanceof Error ? error.message : 'Unable to unpublish results.');
+    }
   };
 
   return (
@@ -71,7 +84,12 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
           ? 'bg-gradient-to-br from-emerald-900 to-christmas-darkGreen text-white border-christmas-gold'
           : 'bg-gradient-to-br from-amber-50 to-orange-50/60 border-amber-300 text-gray-900'
       }`}>
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {workflowError && (
+        <div role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          {workflowError}
+        </div>
+      )}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${

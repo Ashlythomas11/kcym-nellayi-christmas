@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Printer, X, Church, ShieldCheck } from 'lucide-react';
 import { Prize, Winner, DrawSettings, Language } from '../types';
 import { formatToIST } from '../utils/timezone';
@@ -18,6 +18,11 @@ export const NoticeBoardPrint: React.FC<NoticeBoardPrintProps> = ({
   language,
   onClose,
 }) => {
+  useEffect(() => {
+    document.body.classList.add('printing-notice');
+    return () => document.body.classList.remove('printing-notice');
+  }, []);
+
   const handlePrint = () => {
     window.print();
   };
@@ -31,9 +36,9 @@ export const NoticeBoardPrint: React.FC<NoticeBoardPrintProps> = ({
     .sort((a, b) => a.prize.rank - b.prize.rank);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 sm:p-8 flex justify-center items-start">
+    <div id="notice-print-root" className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 sm:p-8 flex justify-center items-start">
       {/* Container */}
-      <div className="bg-white text-black w-full max-w-4xl rounded-2xl shadow-2xl p-6 sm:p-10 space-y-6 my-auto">
+      <div className="print-document bg-white text-black w-full max-w-4xl rounded-2xl shadow-2xl p-6 sm:p-10 space-y-6 my-auto">
         
         {/* Print Controls Header (Hidden in Print) */}
         <div className="no-print flex items-center justify-between border-b pb-4">

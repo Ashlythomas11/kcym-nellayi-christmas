@@ -192,6 +192,20 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
 // PUBLICATION WORKFLOW (Explicit confirmation + Security)
 // -------------------------------------------------------------
 export async function publishResults(adminEmail: string): Promise<DrawSettings> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not configured. Results were not published.');
+  }
+
+  const legacyWinners = getStoredWinners();
+  for (const winner of legacyWinners) {
+    const prize = getPrizes().find((item) => item.id === winner.prizeId);
+    if (!prize) {
+      throw new Error(`Cannot publish winner ${winner.winnerName}: prize ${winner.prizeId} no longer exists.`);
+    }
+    await upsertWinnerToSupabase(supabase, winner, prize);
+  }
+
   const current = getDrawSettings();
   const updated: DrawSettings = {
     ...current,
@@ -200,30 +214,34 @@ export async function publishResults(adminEmail: string): Promise<DrawSettings> 
     publishedBy: adminEmail,
   };
 
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+  const { data, error } = await supabase.from('draw_settings').update({
+    is_published: true,
+    published_at: updated.publishedAt,
+    published_by: adminEmail,
+  }).eq('id', 1).select('id').maybeSingle();
+  if (error) {
+    throw new Error(`Winners were synced, but results could not be published: ${error.message}`);
+  }
+  if (!data || Number(data.id) !== 1) {
+    throw new Error('Winner records were synced, but Supabase did not confirm publishing draw settings row 1.');
+  }
 
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
   addAuditLog(
     'PUBLISH_RESULTS',
     `Official prize coupon results published by ${adminEmail}`,
     adminEmail
   );
-
-  if (isSupabaseConfigured()) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      await supabase.from('draw_settings').update({
-        is_published: true,
-        published_at: updated.publishedAt,
-        published_by: adminEmail,
-      }).eq('id', 1);
-    }
-  }
-
   notifyDataChange();
   return updated;
 }
 
 export async function unpublishResults(adminEmail: string, reason: string): Promise<DrawSettings> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not connected. Results were not unpublished.');
+  }
+
   const current = getDrawSettings();
   const updated: DrawSettings = {
     ...current,
@@ -232,25 +250,24 @@ export async function unpublishResults(adminEmail: string, reason: string): Prom
     publishedBy: null,
   };
 
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+  const { data, error } = await supabase.from('draw_settings').update({
+    is_published: false,
+    published_at: null,
+    published_by: null,
+  }).eq('id', 1).select('id').maybeSingle();
+  if (error) {
+    throw new Error(`Unable to unpublish results in Supabase: ${error.message}`);
+  }
+  if (!data || Number(data.id) !== 1) {
+    throw new Error('Supabase did not confirm unpublishing draw settings row 1.');
+  }
 
+  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
   addAuditLog(
     'UNPUBLISH_RESULTS',
     `Official results unpublished by ${adminEmail}. Reason: ${reason || 'Correction needed'}`,
     adminEmail
   );
-
-  if (isSupabaseConfigured()) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      await supabase.from('draw_settings').update({
-        is_published: false,
-        published_at: null,
-        published_by: null,
-      }).eq('id', 1);
-    }
-  }
-
   notifyDataChange();
   return updated;
 }
@@ -444,11 +461,8 @@ export function getWinners(isAdmin = false): Winner[] {
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.WINNERS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
+    const storedWinners = getStoredWinners();
+    if (storedWinners.length > 0) return storedWinners;
   } catch (e) {
     console.error('Error reading winners:', e);
   }
@@ -457,12 +471,158 @@ export function getWinners(isAdmin = false): Winner[] {
   return SAMPLE_WINNERS;
 }
 
+function getStoredWinners(): Winner[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.WINNERS);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as Winner[] : [];
+  } catch (error) {
+    console.error('Error reading saved winners:', error);
+    return [];
+  }
+}
+
+function getRelatedPrizeRank(value: unknown): number | null {
+  const relation = Array.isArray(value) ? value[0] : value;
+  if (typeof relation !== 'object' || relation === null || !('rank' in relation)) return null;
+  return typeof relation.rank === 'number' ? relation.rank : null;
+}
+
+export async function fetchWinnersFromSupabase(): Promise<Winner[] | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('winners')
+    .select('id, prize_id, winning_coupon_number, winner_name, winner_location, verified_at, created_at, prizes!inner(rank)');
+  if (error) {
+    throw new Error(`Unable to load winning coupons from Supabase: ${error.message}`);
+  }
+
+  const prizes = getPrizes();
+  return data.flatMap((row) => {
+    const rank = getRelatedPrizeRank(row.prizes);
+    const localPrize = prizes.find((prize) => prize.rank === rank);
+    if (!localPrize) {
+      console.warn(`Skipping Supabase winner ${row.id}: no local prize matches rank ${rank ?? 'unknown'}.`);
+      return [];
+    }
+    return [{
+      id: row.id,
+      prizeId: localPrize.id,
+      winningCouponNumber: row.winning_coupon_number,
+      winnerName: row.winner_name,
+      winnerLocation: row.winner_location ?? undefined,
+      verifiedAt: row.verified_at ?? undefined,
+      createdAt: row.created_at,
+    }];
+  });
+}
+
+async function upsertWinnerToSupabase(
+  supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  winner: Winner,
+  prize: Prize,
+): Promise<Winner> {
+  const { data: existingPrizes, error: prizeLookupError } = await supabase
+    .from('prizes')
+    .select('id')
+    .eq('rank', prize.rank)
+    .limit(1);
+  if (prizeLookupError) {
+    throw new Error(`Unable to find prize ${prize.title} in Supabase: ${prizeLookupError.message}`);
+  }
+
+  let databasePrizeId = existingPrizes[0]?.id as string | undefined;
+  if (!databasePrizeId) {
+    const { data: insertedPrize, error: prizeInsertError } = await supabase
+      .from('prizes')
+      .insert({
+        rank: prize.rank,
+        title: prize.title,
+        title_ml: prize.title_ml,
+        category: prize.category,
+        category_label: prize.categoryLabel,
+        category_label_ml: prize.categoryLabel_ml,
+        image_url: prize.imageUrl,
+        description: prize.description,
+        description_ml: prize.description_ml,
+        sponsor: prize.sponsor,
+        sponsor_ml: prize.sponsor_ml,
+        order_index: prize.orderIndex,
+        badge: prize.badge,
+        badge_ml: prize.badge_ml,
+      })
+      .select('id')
+      .single();
+    if (prizeInsertError) {
+      throw new Error(`Unable to sync prize ${prize.title} to Supabase: ${prizeInsertError.message}`);
+    }
+    databasePrizeId = insertedPrize.id;
+  }
+
+  const normalizedCoupon = winner.winningCouponNumber.trim().toUpperCase();
+  const { data: duplicate, error: duplicateError } = await supabase
+    .from('winners')
+    .select('id, prize_id')
+    .eq('winning_coupon_number', normalizedCoupon)
+    .maybeSingle();
+  if (duplicateError) {
+    throw new Error(`Unable to check coupon number in Supabase: ${duplicateError.message}`);
+  }
+  if (duplicate && duplicate.prize_id !== databasePrizeId) {
+    throw new Error(`Coupon number "${normalizedCoupon}" is already assigned to another prize.`);
+  }
+
+  const { data: existingWinner, error: winnerLookupError } = await supabase
+    .from('winners')
+    .select('id')
+    .eq('prize_id', databasePrizeId)
+    .limit(1);
+  if (winnerLookupError) {
+    throw new Error(`Unable to find the existing winner record: ${winnerLookupError.message}`);
+  }
+
+  const winnerValues = {
+    prize_id: databasePrizeId,
+    winning_coupon_number: normalizedCoupon,
+    winner_name: winner.winnerName.trim(),
+    winner_location: winner.winnerLocation || null,
+    verified_at: winner.verifiedAt || new Date().toISOString(),
+  };
+  const write = existingWinner[0]
+    ? supabase.from('winners').update(winnerValues).eq('id', existingWinner[0].id)
+    : supabase.from('winners').insert(winnerValues);
+  const { data, error } = await write
+    .select('id, prize_id, winning_coupon_number, winner_name, winner_location, verified_at, created_at')
+    .single();
+  if (error) {
+    throw new Error(`Unable to save winner to Supabase: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    prizeId: winner.prizeId,
+    winningCouponNumber: data.winning_coupon_number,
+    winnerName: data.winner_name,
+    winnerLocation: data.winner_location ?? undefined,
+    verifiedAt: data.verified_at ?? undefined,
+    createdAt: data.created_at,
+  };
+}
+
 /**
  * Adds or updates a winner.
  * Enforces NO duplicate winning coupon numbers across different prizes.
  */
 export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ success: boolean; error?: string }> {
-  const winners = getWinners(true);
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return { success: false, error: 'Supabase is not connected. The winner was not saved.' };
+  }
+
+  const winners = getStoredWinners();
   const normalizedCoupon = winner.winningCouponNumber.trim().toUpperCase();
 
   // Duplicate coupon check
@@ -477,6 +637,19 @@ export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ 
     };
   }
 
+  const prize = getPrizes().find((item) => item.id === winner.prizeId);
+  if (!prize) {
+    return { success: false, error: 'The selected prize could not be found.' };
+  }
+
+  let savedWinner: Winner;
+  try {
+    savedWinner = await upsertWinnerToSupabase(supabase, winner, prize);
+  } catch (error) {
+    console.error('Failed to save winner to Supabase:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unable to save winner to Supabase.' };
+  }
+
   const existingIndex = winners.findIndex((w) => w.id === winner.id || w.prizeId === winner.prizeId);
   let updatedList: Winner[];
 
@@ -484,9 +657,7 @@ export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ 
     updatedList = [...winners];
     updatedList[existingIndex] = {
       ...winners[existingIndex],
-      ...winner,
-      winningCouponNumber: normalizedCoupon,
-      verifiedAt: new Date().toISOString(),
+      ...savedWinner,
     };
     addAuditLog(
       'WINNER_UPDATE',
@@ -496,11 +667,7 @@ export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ 
   } else {
     updatedList = [
       ...winners,
-      {
-        ...winner,
-        winningCouponNumber: normalizedCoupon,
-        createdAt: new Date().toISOString(),
-      },
+      savedWinner,
     ];
     addAuditLog(
       'WINNER_CREATE',
@@ -509,15 +676,29 @@ export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ 
     );
   }
 
-  localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(updatedList));
+  try {
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(updatedList));
+  } catch (error) {
+    console.warn('Winner was saved to Supabase, but the local cache could not be updated:', error);
+  }
   notifyDataChange();
   return { success: true };
 }
 
 export async function deleteWinner(winnerId: string, adminEmail: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase is not connected. The winner was not deleted.');
+  }
+
   const winners = getWinners(true);
   const target = winners.find((w) => w.id === winnerId);
   const updated = winners.filter((w) => w.id !== winnerId);
+
+  const { error } = await supabase.from('winners').delete().eq('id', winnerId);
+  if (error) {
+    throw new Error(`Unable to delete winner from Supabase: ${error.message}`);
+  }
 
   localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(updated));
   addAuditLog(

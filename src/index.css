@@ -165,7 +165,38 @@
 }
 
 /* Print stylesheet for church notice board official results printout */
+@page {
+  margin: 12mm;
+}
+
 @media print {
+  body.printing-notice #root * {
+    visibility: hidden !important;
+  }
+  body.printing-notice #notice-print-root,
+  body.printing-notice #notice-print-root * {
+    visibility: visible !important;
+  }
+  body.printing-notice #notice-print-root {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: white !important;
+    backdrop-filter: none !important;
+  }
+  body.printing-notice #notice-print-root > .print-document {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
   body {
     background: white !important;
     color: black !important;
@@ -182,5 +213,9 @@
   .print-card {
     border: 1px solid #ccc !important;
     box-shadow: none !important;
+  }
+  .print-card tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

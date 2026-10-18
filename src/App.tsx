@@ -14,6 +14,7 @@ import { INITIAL_DRAW_SETTINGS } from './constants/initialData';
 import { Language, Prize, Winner, DrawSettings, AuditLog, AdminUser, CouponSearchResult } from './types';
 import {
   fetchDrawSettingsFromSupabase,
+  fetchWinnersFromSupabase,
   getDrawSettings,
   mapDrawSettingsRow,
   getPrizes,
@@ -34,8 +35,10 @@ export function App() {
   const [drawSettings, setDrawSettings] = useState<DrawSettings>(INITIAL_DRAW_SETTINGS);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const hasLoadedCloudSettings = useRef(false);
+  const hasLoadedCloudWinners = useRef(false);
+  const adminUserRef = useRef(adminUser);
   const [prizes, setPrizes] = useState<Prize[]>(getPrizes);
-  const [winners, setWinners] = useState<Winner[]>(() => getWinners(false));
+  const [winners, setWinners] = useState<Winner[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(getAuditLogs);
 
   // Quick coupon search pop-up from Hero or QR scan URL parameter
@@ -46,7 +49,20 @@ export function App() {
     const s = getDrawSettings();
     if (!hasLoadedCloudSettings.current) setDrawSettings(s);
     setPrizes(getPrizes());
-    setWinners(getWinners(Boolean(adminUser)));
+    if (hasLoadedCloudSettings.current && (s.isPublished || adminUser)) {
+      void fetchWinnersFromSupabase()
+        .then((cloudWinners) => {
+          if (!cloudWinners) return;
+          hasLoadedCloudWinners.current = true;
+          setWinners(cloudWinners);
+        })
+        .catch((error) => console.error('Unable to refresh winning coupons:', error));
+    } else if (hasLoadedCloudSettings.current) {
+      hasLoadedCloudWinners.current = false;
+      setWinners([]);
+    } else if (!hasLoadedCloudWinners.current) {
+      setWinners(getWinners(Boolean(adminUser)));
+    }
     setAuditLogs(getAuditLogs());
   }, [adminUser]);
 
@@ -74,7 +90,34 @@ export function App() {
             (payload) => {
               if (!isActive || !payload.new || Object.keys(payload.new).length === 0) return;
               hasLoadedCloudSettings.current = true;
-            setDrawSettings(mapDrawSettingsRow(payload.new));
+              const settings = mapDrawSettingsRow(payload.new);
+              setDrawSettings(settings);
+              if (settings.isPublished || adminUserRef.current) {
+                void fetchWinnersFromSupabase()
+                  .then((cloudWinners) => {
+                    if (!isActive || !cloudWinners) return;
+                    hasLoadedCloudWinners.current = true;
+                    setWinners(cloudWinners);
+                  })
+                  .catch((error) => console.error('Unable to refresh published winners:', error));
+              } else {
+                hasLoadedCloudWinners.current = false;
+                setWinners([]);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'winners' },
+            () => {
+              if (!isActive || (!adminUserRef.current && !hasLoadedCloudSettings.current)) return;
+              void fetchWinnersFromSupabase()
+                .then((cloudWinners) => {
+                  if (!isActive || !cloudWinners) return;
+                  hasLoadedCloudWinners.current = true;
+                  setWinners(cloudWinners);
+                })
+                .catch((error) => console.error('Unable to refresh winning coupons:', error));
             }
           )
           .subscribe((status, error) => {
@@ -88,6 +131,17 @@ export function App() {
 
         hasLoadedCloudSettings.current = true;
         setDrawSettings(liveSettings);
+        if (liveSettings.isPublished) {
+          try {
+            const cloudWinners = await fetchWinnersFromSupabase();
+            if (cloudWinners && isActive) {
+              hasLoadedCloudWinners.current = true;
+              setWinners(cloudWinners);
+            }
+          } catch (error) {
+            console.error('Unable to load published winning coupons:', error);
+          }
+        }
       } catch (error) {
         console.error('Unable to load live draw settings; using default settings:', error);
       } finally {
@@ -136,10 +190,22 @@ export function App() {
   };
 
   const handleLoginSuccess = (user: AdminUser) => {
+    adminUserRef.current = user;
     setAdminUser(user);
     setCurrentView('admin-dashboard');
-    // Admin can see unpublished winners for preview/management
-    setWinners(getWinners(true));
+    void fetchWinnersFromSupabase()
+      .then((cloudWinners) => {
+        if (cloudWinners) {
+          hasLoadedCloudWinners.current = true;
+          setWinners(cloudWinners);
+        } else {
+          setWinners(getWinners(true));
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to load administrator winners from Supabase:', error);
+        setWinners(getWinners(true));
+      });
   };
 
   const handleLogout = async () => {
@@ -152,9 +218,22 @@ export function App() {
     } catch (error) {
       console.error('Administrator sign-out failed:', error);
     } finally {
+      adminUserRef.current = null;
       setAdminUser(null);
       setCurrentView('public');
-      setWinners(getWinners(false));
+      hasLoadedCloudWinners.current = false;
+      setWinners([]);
+      if (drawSettings.isPublished) {
+        try {
+          const cloudWinners = await fetchWinnersFromSupabase();
+          if (cloudWinners) {
+            hasLoadedCloudWinners.current = true;
+            setWinners(cloudWinners);
+          }
+        } catch (error) {
+          console.error('Unable to load public winning coupons:', error);
+        }
+      }
     }
   };
 

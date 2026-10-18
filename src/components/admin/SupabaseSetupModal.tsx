@@ -99,6 +99,12 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.draw_settings;
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'winners'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.winners;
+  END IF;
 END
 $$;
 

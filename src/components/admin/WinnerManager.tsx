@@ -21,6 +21,7 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
   const [winnerName, setWinnerName] = useState('');
   const [winnerLocation, setWinnerLocation] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleStartEdit = (prize: Prize, existingWinner?: Winner) => {
     setEditingPrizeId(prize.id);
@@ -53,20 +54,33 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
       createdAt: existingWinner?.createdAt || new Date().toISOString(),
     };
 
-    const res = await saveWinner(winnerData, adminUser.email);
-    if (!res.success) {
-      setErrorMessage(res.error || 'Failed to save winner.');
-      return;
-    }
+    setIsSaving(true);
+    try {
+      const res = await saveWinner(winnerData, adminUser.email);
+      if (!res.success) {
+        setErrorMessage(res.error || 'Failed to save winner.');
+        return;
+      }
 
-    setEditingPrizeId(null);
-    onRefresh();
+      setEditingPrizeId(null);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to save winner:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to save winner.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async (winnerId: string) => {
     if (confirm('Are you sure you want to remove this winner assignment?')) {
-      await deleteWinner(winnerId, adminUser.email);
-      onRefresh();
+      try {
+        await deleteWinner(winnerId, adminUser.email);
+        onRefresh();
+      } catch (error) {
+        console.error('Failed to delete winner:', error);
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to delete winner.');
+      }
     }
   };
 
@@ -242,10 +256,11 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSave(prize.id)}
-                        className="px-4 py-1.5 rounded-lg bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-xs flex items-center gap-1.5"
+                        disabled={isSaving}
+                        className="px-4 py-1.5 rounded-lg bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-xs flex items-center gap-1.5 disabled:cursor-wait disabled:opacity-60"
                       >
                         <Save className="w-3.5 h-3.5" />
-                        <span>Save Assignment</span>
+                        <span>{isSaving ? 'Saving...' : 'Save Assignment'}</span>
                       </button>
                     </div>
                   </div>
