@@ -109,7 +109,7 @@ export function App() {
           .from('draw_settings')
           .select('*')
           .eq('id', '1')
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Unable to load live draw settings; using default settings:', error);
