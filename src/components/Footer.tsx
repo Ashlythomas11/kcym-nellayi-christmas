@@ -70,8 +70,7 @@ export const Footer: React.FC<FooterProps> = ({ language, onOpenAdmin }) => {
           </p>
         </section>
 
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-christmas-gold/20">
-          {/* Brand Info */}
+<div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8">          {/* Brand Info */}
           <div className="flex items-center gap-3.5 text-center md:text-left">
             <img src={kcymLogo} alt="" className="w-12 h-12 object-contain flex-shrink-0" />
             <div>
