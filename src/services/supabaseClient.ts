@@ -3,6 +3,24 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const STORAGE_KEY_URL = 'kcym_supabase_url';
 const STORAGE_KEY_ANON = 'kcym_supabase_anon_key';
 
+const fetchDrawSettingsWithoutCache: typeof fetch = (input, init) => {
+  const requestUrl = input instanceof Request ? input.url : String(input);
+  if (!requestUrl.includes('/rest/v1/draw_settings')) {
+    return fetch(input, init);
+  }
+
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
+  headers.set('Cache-Control', 'no-cache, no-store, max-age=0');
+  headers.set('Pragma', 'no-cache');
+
+  return fetch(input, {
+    ...init,
+    cache: 'no-store',
+    headers,
+  });
+};
+
 export function getSupabaseCredentials(): { url: string; anonKey: string } {
   const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -64,6 +82,9 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!clientInstance || clientCredentials !== credentialsKey) {
     try {
       clientInstance = createClient(url, anonKey, {
+        global: {
+          fetch: fetchDrawSettingsWithoutCache,
+        },
         auth: {
           persistSession: true,
           autoRefreshToken: true,
