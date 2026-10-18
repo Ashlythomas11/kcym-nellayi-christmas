@@ -753,23 +753,72 @@ function getStoredWinners(): Winner[] {
 }
 
 function parseCloudWinners(value: unknown): Winner[] {
-  if (value === null || value === undefined) return [];
-  if (!Array.isArray(value)) {
-    throw new Error('Supabase returned invalid winner data in draw_settings.prizes or published results.');
-  }
-  return value.map((row: unknown) => {
-    if (
-      typeof row !== 'object'
-      || row === null
-      || !('id' in row) || typeof row.id !== 'string'
-      || !('prizeId' in row) || typeof row.prizeId !== 'string'
-      || !('winningCouponNumber' in row) || typeof row.winningCouponNumber !== 'string'
-      || !('winnerName' in row) || typeof row.winnerName !== 'string'
-      || !('createdAt' in row) || typeof row.createdAt !== 'string'
-    ) {
-      throw new Error('Supabase returned an invalid winner entry in draw_settings.prizes or published results.');
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (error) {
+      console.warn('Unable to parse published winner JSON:', error);
+      return [];
     }
-    return row as Winner;
+  }
+  if (!Array.isArray(parsed)) {
+    if (parsed !== null && parsed !== undefined) {
+      console.warn('Published winner data was not an array; treating it as empty.');
+    }
+    return [];
+  }
+
+  return parsed.flatMap((valueRow: unknown) => {
+    if (typeof valueRow !== 'object' || valueRow === null) {
+      console.warn('Skipping invalid published winner entry:', valueRow);
+      return [];
+    }
+    const row = valueRow as Record<string, unknown>;
+    const prizeId = typeof row.prizeId === 'string'
+      ? row.prizeId
+      : typeof row.prize_id === 'string'
+        ? row.prize_id
+        : typeof row.rank === 'number'
+          ? `prize-${row.rank}`
+          : null;
+    const winningCouponNumber = row.winningCouponNumber ?? row.winning_coupon_number ?? row.winning_coupon;
+    const winnerName = row.winnerName ?? row.winner_name;
+    if (
+      !prizeId
+      || (typeof winningCouponNumber !== 'string' && typeof winningCouponNumber !== 'number')
+      || typeof winnerName !== 'string'
+    ) {
+      console.warn('Skipping published winner entry with missing prize, coupon, or name:', valueRow);
+      return [];
+    }
+
+    const id = typeof row.id === 'string' || typeof row.id === 'number'
+      ? String(row.id)
+      : `winner-${prizeId}`;
+    const createdAt = typeof row.createdAt === 'string'
+      ? row.createdAt
+      : typeof row.created_at === 'string'
+        ? row.created_at
+        : typeof row.verifiedAt === 'string'
+          ? row.verifiedAt
+          : typeof row.verified_at === 'string'
+            ? row.verified_at
+            : '';
+    const winnerLocation = row.winnerLocation ?? row.winner_location;
+    return [{
+      id,
+      prizeId,
+      winningCouponNumber: String(winningCouponNumber),
+      winnerName,
+      ...(typeof winnerLocation === 'string' && winnerLocation ? { winnerLocation } : {}),
+      ...(typeof row.verifiedAt === 'string'
+        ? { verifiedAt: row.verifiedAt }
+        : typeof row.verified_at === 'string'
+          ? { verifiedAt: row.verified_at }
+          : {}),
+      createdAt,
+    }];
   });
 }
 
@@ -794,7 +843,9 @@ export async function fetchWinnersFromSupabase(isAdmin = false): Promise<Winner[
   if (!data) return [];
   const cloudWinners = isAdmin
     ? getWinnersFromPrizeRows(data.prizes)
-    : parseCloudWinners('winners' in data ? data.winners : null);
+    : 'winners' in data
+      ? parseCloudWinners(data.winners)
+      : getWinnersFromPrizeRows(data.prizes);
 
   try {
     localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(cloudWinners));
