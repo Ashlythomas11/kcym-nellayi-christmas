@@ -476,8 +476,48 @@ function normalizePrizeRows(value: unknown): unknown[] {
   return parsed;
 }
 
+function isLegacyPrizeRow(value: unknown): value is Record<string, unknown> & {
+  rank: number;
+  prize_name: string;
+  winning_coupon: string;
+  winner_name: string;
+} {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.rank === 'number'
+    && typeof row.prize_name === 'string'
+    && typeof row.winning_coupon === 'string'
+    && typeof row.winner_name === 'string';
+}
+
+function normalizeLegacyPrizeRows(rows: unknown[]): unknown[] | null {
+  if (!rows.every(isLegacyPrizeRow)) return null;
+  return rows.map((row) => {
+    const initialPrize = INITIAL_PRIZES.find((prize) => prize.rank === row.rank);
+    if (!initialPrize) return null;
+    const hasWinner = row.winning_coupon.trim() !== '' && row.winner_name.trim() !== '';
+    return {
+      ...initialPrize,
+      title: row.prize_name,
+      ...(hasWinner
+        ? {
+          winner: {
+            id: `winner-${initialPrize.id}`,
+            prizeId: initialPrize.id,
+            winningCouponNumber: row.winning_coupon,
+            winnerName: row.winner_name,
+            createdAt: '',
+          },
+        }
+        : {}),
+    };
+  });
+}
+
 function getWinnersFromPrizeRows(value: unknown): Winner[] {
-  return normalizePrizeRows(value).flatMap((entry: unknown) => {
+  const rows = normalizePrizeRows(value);
+  const normalizedLegacyRows = normalizeLegacyPrizeRows(rows);
+  return (normalizedLegacyRows ?? rows).flatMap((entry: unknown) => {
     if (typeof entry !== 'object' || entry === null || !('winner' in entry) || entry.winner == null) return [];
     try {
       return parseCloudWinners([entry.winner]);
@@ -496,7 +536,8 @@ function withWinnersInPrizes(prizes: Prize[], winners: Winner[]): Array<Prize & 
 }
 
 function parsePrizes(value: unknown): Prize[] {
-  const parsedPrizes = normalizePrizeRows(value);
+  const rows = normalizePrizeRows(value);
+  const parsedPrizes = rows.every(isPrize) ? rows : normalizeLegacyPrizeRows(rows) ?? [];
   if (parsedPrizes.length === 0) {
     return INITIAL_PRIZES;
   }
