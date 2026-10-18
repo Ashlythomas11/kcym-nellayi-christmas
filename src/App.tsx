@@ -10,6 +10,7 @@ import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { CouponSearchModal } from './components/CouponSearchModal';
 
+import { INITIAL_DRAW_SETTINGS } from './constants/initialData';
 import { Language, Prize, Winner, DrawSettings, AuditLog, AdminUser, CouponSearchResult } from './types';
 import {
   getDrawSettings,
@@ -28,7 +29,8 @@ export function App() {
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
 
   // Core reactive data states
-  const [drawSettings, setDrawSettings] = useState<DrawSettings>(getDrawSettings);
+  const [drawSettings, setDrawSettings] = useState<DrawSettings>(INITIAL_DRAW_SETTINGS);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [prizes, setPrizes] = useState<Prize[]>(getPrizes);
   const [winners, setWinners] = useState<Winner[]>(() => getWinners(false));
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(getAuditLogs);
@@ -51,50 +53,52 @@ export function App() {
     return () => window.removeEventListener(DATA_CHANGE_EVENT, reloadData);
   }, [reloadData]);
 
-  // Load the shared settings after the local fallback so the page renders immediately.
+  // Load shared settings before showing the public page to avoid flashing stale local values.
   useEffect(() => {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-
     let isActive = true;
 
     const loadDrawSettings = async () => {
       try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
         const { data, error } = await supabase
           .from('draw_settings')
           .select('*')
-          .eq('id', 1)
-          .maybeSingle();
+          .eq('id', '1')
+          .single();
 
         if (error) {
-          console.error('Unable to load live draw settings; using local settings:', error);
+          console.error('Unable to load live draw settings; using default settings:', error);
           return;
         }
         if (!data || !isActive) return;
 
-        const fallback = getDrawSettings();
         setDrawSettings({
-          ...fallback,
-          drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : fallback.drawDateIST,
-          timezone: typeof data.timezone === 'string' ? data.timezone : fallback.timezone,
-          isPublished: typeof data.is_published === 'boolean' ? data.is_published : fallback.isPublished,
+          ...INITIAL_DRAW_SETTINGS,
+          drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : INITIAL_DRAW_SETTINGS.drawDateIST,
+          timezone: typeof data.timezone === 'string' ? data.timezone : INITIAL_DRAW_SETTINGS.timezone,
+          isPublished: typeof data.is_published === 'boolean' ? data.is_published : INITIAL_DRAW_SETTINGS.isPublished,
           publishedAt: typeof data.published_at === 'string' ? data.published_at : null,
           publishedBy: typeof data.published_by === 'string' ? data.published_by : null,
-          drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : fallback.drawVenue,
-          drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : fallback.drawVenue_ml,
-          heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : fallback.heroHeadline,
-          heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : fallback.heroHeadline_ml,
-          heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : fallback.heroSubtitle,
-          heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : fallback.heroSubtitle_ml,
-          announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : fallback.announcementText,
-          announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : fallback.announcementText_ml,
-          contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : fallback.contactPhone,
-          contactEmail: typeof data.contact_email === 'string' ? data.contact_email : fallback.contactEmail,
-          churchAddress: typeof data.church_address === 'string' ? data.church_address : fallback.churchAddress,
-          couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : fallback.couponPrice,
+          drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : INITIAL_DRAW_SETTINGS.drawVenue,
+          drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : INITIAL_DRAW_SETTINGS.drawVenue_ml,
+          heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : INITIAL_DRAW_SETTINGS.heroHeadline,
+          heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : INITIAL_DRAW_SETTINGS.heroHeadline_ml,
+          heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : INITIAL_DRAW_SETTINGS.heroSubtitle,
+          heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : INITIAL_DRAW_SETTINGS.heroSubtitle_ml,
+          announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : INITIAL_DRAW_SETTINGS.announcementText,
+          announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : INITIAL_DRAW_SETTINGS.announcementText_ml,
+          contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : INITIAL_DRAW_SETTINGS.contactPhone,
+          contactEmail: typeof data.contact_email === 'string' ? data.contact_email : INITIAL_DRAW_SETTINGS.contactEmail,
+          churchAddress: typeof data.church_address === 'string' ? data.church_address : INITIAL_DRAW_SETTINGS.churchAddress,
+          churchAddress_ml: typeof data.church_address_ml === 'string' ? data.church_address_ml : INITIAL_DRAW_SETTINGS.churchAddress_ml,
+          couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : INITIAL_DRAW_SETTINGS.couponPrice,
         });
       } catch (error) {
-        console.error('Unable to load live draw settings; using local settings:', error);
+        console.error('Unable to load live draw settings; using default settings:', error);
+      } finally {
+        if (isActive) setIsSettingsLoading(false);
       }
     };
 
@@ -159,6 +163,19 @@ export function App() {
       setWinners(getWinners(false));
     }
   };
+
+  if (isSettingsLoading && currentView === 'public') {
+    return (
+      <div
+        lang={language === 'ml' ? 'ml' : 'en'}
+        className={`min-h-screen bg-gray-50 ${language === 'ml' ? 'font-malayalam' : 'font-sans'}`}
+      >
+        <div role="status" aria-label="Loading latest draw settings" className="flex min-h-screen items-center justify-center">
+          <span className="h-8 w-8 animate-spin rounded-full border-4 border-christmas-emerald/20 border-t-christmas-emerald" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div lang={language === 'ml' ? 'ml' : 'en'} className={`min-h-screen flex flex-col ${language === 'ml' ? 'font-malayalam' : 'font-sans'}`}>

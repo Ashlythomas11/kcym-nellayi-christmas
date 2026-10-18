@@ -105,29 +105,37 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
       throw new Error('Settings were saved in this browser, but the cloud database could not be initialized.');
     }
 
-    const { error } = await supabase.from('draw_settings').upsert({
-      id: 1,
-      draw_date_ist: updated.drawDateIST,
-      timezone: updated.timezone,
-      is_published: updated.isPublished,
-      published_at: updated.publishedAt,
-      published_by: updated.publishedBy,
-      draw_venue: updated.drawVenue,
-      draw_venue_ml: updated.drawVenue_ml,
-      hero_headline: updated.heroHeadline,
-      hero_headline_ml: updated.heroHeadline_ml,
-      hero_subtitle: updated.heroSubtitle,
-      hero_subtitle_ml: updated.heroSubtitle_ml,
-      announcement_text: updated.announcementText,
-      announcement_text_ml: updated.announcementText_ml,
-      contact_phone: updated.contactPhone,
-      contact_email: updated.contactEmail,
-      church_address: updated.churchAddress,
-      coupon_price: updated.couponPrice,
-    });
+    const { data, error } = await supabase
+      .from('draw_settings')
+      .upsert({
+        id: 1,
+        draw_date_ist: updated.drawDateIST,
+        timezone: updated.timezone,
+        is_published: updated.isPublished,
+        published_at: updated.publishedAt,
+        published_by: updated.publishedBy,
+        draw_venue: updated.drawVenue,
+        draw_venue_ml: updated.drawVenue_ml,
+        hero_headline: updated.heroHeadline,
+        hero_headline_ml: updated.heroHeadline_ml,
+        hero_subtitle: updated.heroSubtitle,
+        hero_subtitle_ml: updated.heroSubtitle_ml,
+        announcement_text: updated.announcementText,
+        announcement_text_ml: updated.announcementText_ml,
+        contact_phone: updated.contactPhone,
+        contact_email: updated.contactEmail,
+        church_address: updated.churchAddress,
+        coupon_price: updated.couponPrice,
+      }, { onConflict: 'id' })
+      .select()
+      .single();
     if (error) {
       throw new Error(`Settings were saved in this browser, but cloud sync failed: ${error.message}`);
     }
+    if (data.id !== 1) {
+      throw new Error(`Settings were saved in this browser, but Supabase returned unexpected row id ${data.id}.`);
+    }
+    console.info('Supabase draw settings row saved:', data);
   }
 
   notifyDataChange();
