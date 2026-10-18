@@ -90,7 +90,7 @@ export const NoticeBoardPrint: React.FC<NoticeBoardPrintProps> = ({
           {/* Meta Details */}
           <div className="flex flex-wrap justify-between text-xs text-gray-800 border-b border-gray-300 pb-2">
             <div>
-              <strong>Draw Date:</strong> December 25, 2026 (12:00 AM IST)
+              <strong>Draw Date:</strong> {formatToIST(drawSettings.drawDateIST)}
             </div>
             <div>
               <strong>Venue:</strong> {drawSettings.drawVenue}

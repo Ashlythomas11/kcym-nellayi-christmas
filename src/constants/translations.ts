@@ -11,7 +11,7 @@ export const translations = {
     badge: {
       official: 'Official KCYM Prize Coupon 2026',
       parish: "St. Mary's Church, Nellayi",
-      drawDate: 'Draw Date: Dec 25, 2026 (12:00 AM IST)',
+      drawDate: 'Draw Date: Dec 24, 2026 (11:00 PM IST)',
       price: 'Coupon Contribution: ₹50',
     },
     hero: {
@@ -24,7 +24,7 @@ export const translations = {
     },
     countdown: {
       title: 'Grand Christmas Draw Countdown',
-      subtitle: 'Official draw will take place at 12:00 AM IST on December 25, 2026',
+      subtitle: 'Official draw will take place at 11:00 PM IST on December 24, 2026',
       days: 'Days',
       hours: 'Hours',
       minutes: 'Minutes',
@@ -49,7 +49,7 @@ export const translations = {
     },
     results: {
       preTitle: 'Official Results Not Yet Published',
-      preDesc: 'The lucky draw is scheduled for December 25, 2026. The results will appear here immediately after manual verification and official publication by authorized church administrators.',
+      preDesc: 'The lucky draw is scheduled for December 24, 2026 at 11:00 PM IST. The results will appear here immediately after manual verification and official publication by authorized church administrators.',
       preNotice: 'Please preserve your original prize coupon safely. Winning claims require the physical coupon.',
       postTitle: 'Official KCYM Prize Coupon Results – 2026',
       postSubtitle: "Verified and published by St. Mary's Church, Nellayi",
@@ -73,7 +73,7 @@ export const translations = {
       aboutTitle: 'About KCYM St. Mary\'s Church, Nellayi',
       aboutDesc: 'The Kerala Catholic Youth Movement (KCYM) unit of St. Mary\'s Church, Nellayi, has been vibrant in spiritual leadership, parish community service, and youth empowerment. Proceeds from this Christmas coupon drive support charitable projects, youth education seminars, Christmas celebrations, and the church festival.',
       rulesTitle: 'Coupon Guidelines & Claim Rules',
-      rule1: '1. The draw takes place on December 25, 2026 at St. Mary\'s Church Parish Hall in the presence of parish authorities.',
+      rule1: '1. The draw takes place on December 24, 2026 at 11:00 PM IST at St. Mary\'s Church Parish Hall in the presence of parish authorities.',
       rule2: '2. Winning coupons must be produced in original along with valid government photo identification within 30 days.',
       rule3: '3. In case of duplicate claims or disputes, the decision of the Parish Vicar and KCYM Advisory Board is final.',
       rule4: '4. Prizes are non-transferable and cannot be exchanged for cash unless specifically authorized.',
@@ -102,7 +102,7 @@ export const translations = {
     badge: {
       official: 'ഔദ്യോഗിക KCYM ക്രിസ്മസ് ഭാഗ്യക്കുറി 2026',
       parish: 'സെന്റ് മേരീസ് പള്ളി, നെല്ലായി',
-      drawDate: 'നറുക്കെടുപ്പ്: 2026 ഡിസംബർ 25 (അർദ്ധരാത്രി 12:00 IST)',
+      drawDate: 'നറുക്കെടുപ്പ്: 2026 ഡിസംബർ 24 (രാത്രി 11:00 IST)',
       price: 'കൂപ്പൺ സംഭാവന: ₹50',
     },
     hero: {
@@ -115,7 +115,7 @@ export const translations = {
     },
     countdown: {
       title: 'മഹാ ക്രിസ്മസ് നറുക്കെടുപ്പ് കൗണ്ട്ഡൗൺ',
-      subtitle: 'ഔദ്യോഗിക നറുക്കെടുപ്പ് 2026 ഡിസംബർ 25-ന് അർദ്ധരാത്രി 12:00 IST-ന് നടക്കും',
+      subtitle: 'ഔദ്യോഗിക നറുക്കെടുപ്പ് 2026 ഡിസംബർ 24-ന് രാത്രി 11:00 IST-ന് നടക്കും',
       days: 'ദിവസങ്ങൾ',
       hours: 'മണിക്കൂറുകൾ',
       minutes: 'മിനിറ്റുകൾ',
@@ -140,7 +140,7 @@ export const translations = {
     },
     results: {
       preTitle: 'ഔദ്യോഗിക ഫലങ്ങൾ ഇതുവരെ പ്രസിദ്ധീകരിച്ചിട്ടില്ല',
-      preDesc: 'ഭാഗ്യനറുക്കെടുപ്പ് 2026 ഡിസംബർ 25-ന് നടക്കും. ഇടവക അധികൃതർ ഫലങ്ങൾ പരിശോധിച്ച് ഔദ്യോഗികമായി പ്രസിദ്ധീകരിച്ചാലുടൻ ഇവിടെ കാണാം.',
+      preDesc: 'ഭാഗ്യനറുക്കെടുപ്പ് 2026 ഡിസംബർ 24-ന് രാത്രി 11:00 IST-ന് നടക്കും. ഇടവക അധികൃതർ ഫലങ്ങൾ പരിശോധിച്ച് ഔദ്യോഗികമായി പ്രസിദ്ധീകരിച്ചാലുടൻ ഇവിടെ കാണാം.',
       preNotice: 'നിങ്ങളുടെ ഒറിജിനൽ കൂപ്പൺ സുരക്ഷിതമായി സൂക്ഷിക്കുക. സമ്മാനങ്ങൾ കൈപ്പറ്റാൻ ഒറിജിനൽ കൂപ്പൺ നിർബന്ധമാണ്.',
       postTitle: 'ഔദ്യോഗിക കെ.സി.വൈ.എം. ക്രിസ്മസ് കൂപ്പൺ ഫലങ്ങൾ – 2026',
       postSubtitle: 'നെല്ലായി സെന്റ് മേരീസ് പള്ളി അധികൃതർ പരിശോധിച്ച് പ്രസിദ്ധീകരിച്ച ഔദ്യോഗിക ഫലങ്ങൾ',
@@ -164,7 +164,7 @@ export const translations = {
       aboutTitle: 'കെ.സി.വൈ.എം. സെന്റ് മേരീസ് പള്ളി, നെല്ലായി',
       aboutDesc: 'നെല്ലായി സെന്റ് മേരീസ് ഫൊറോന പള്ളിയിലെ കേരള കത്തോലിക്കാ യുവജന പ്രസ്ഥാനമായ കെ.സി.വൈ.എം. ആത്മീയ നേതൃത്വത്തിലും ഇടവക സേവനത്തിലും യുവജന ശാക്തീകരണത്തിലും സജീവമാണ്. ഈ ക്രിസ്മസ് കൂപ്പൺ വഴി ലഭിക്കുന്ന തുക ജീവകാരുണ്യ പ്രവർത്തനങ്ങൾക്കും യുവജന വിദ്യാഭ്യാസ സെമിനാറുകൾക്കും ക്രിസ്മസ് ആഘോഷങ്ങൾക്കും പള്ളി തിരുനാളിനും വിനിയോഗിക്കുന്നു.',
       rulesTitle: 'നിബന്ധനകളും വിവരങ്ങളും',
-      rule1: '1. നറുക്കെടുപ്പ് 2026 ഡിസംബർ 25-ന് സെന്റ് മേരീസ് പള്ളി പാരിഷ് ഹാളിൽ ഇടവക അധികൃതരുടെ സാന്നിധ്യത്തിൽ നടക്കും.',
+      rule1: '1. നറുക്കെടുപ്പ് 2026 ഡിസംബർ 24-ന് രാത്രി 11:00 IST-ന് സെന്റ് മേരീസ് പള്ളി പാരിഷ് ഹാളിൽ ഇടവക അധികൃതരുടെ സാന്നിധ്യത്തിൽ നടക്കും.',
       rule2: '2. സമ്മാനാർഹർ കൂപ്പണും സാധുവായ സർക്കാർ ഫോട്ടോ തിരിച്ചറിയൽ രേഖയും നറുക്കെടുപ്പ് തീയതി മുതൽ 30 ദിവസത്തിനകം പള്ളി ഓഫീസിൽ ഹാജരാക്കണം.',
       rule3: '3. ഇരട്ട അവകാശവാദങ്ങളോ തർക്കങ്ങളോ ഉണ്ടായാൽ ഇടവക വികാരിയുടെയും കെ.സി.വൈ.എം. സമിതിയുടെയും തീരുമാനം അന്തിമമായിരിക്കും.',
       rule4: '4. സമ്മാനങ്ങൾ കൈമാറാനോ പണമായി മാറ്റിവാങ്ങാനോ കഴിയില്ല.',

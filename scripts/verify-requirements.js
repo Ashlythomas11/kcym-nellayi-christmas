@@ -10,12 +10,12 @@ function testCountdownCalculation() {
   console.log('Test 1: IST Countdown Calculation & Expiry Safety...');
   
   // Future draw date
-  const targetFuture = '2026-12-24T19:00:00+05:30';
+  const targetFuture = '2026-12-24T23:00:00+05:30';
   const targetTime = new Date(targetFuture).getTime();
   const now = Date.now();
   const diff = targetTime - now;
 
-  assert(diff > 0, 'Target draw date Dec 24, 2026 must be in the future relative to current test run');
+  assert(diff > 0, 'Target draw date Dec 24, 2026 at 11:00 PM IST must be in the future relative to current test run');
   
   // Past date simulation
   const pastTarget = '2024-12-24T19:00:00+05:30';
@@ -98,7 +98,7 @@ function testDuplicateCouponPrevention() {
 // 4. Asia/Kolkata Formatter Verification
 function testISTFormatter() {
   console.log('Test 4: Asia/Kolkata (IST) Date Formatting...');
-  const date = new Date('2026-12-24T19:00:00+05:30');
+  const date = new Date('2026-12-24T23:00:00+05:30');
   
   const formatter = new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',

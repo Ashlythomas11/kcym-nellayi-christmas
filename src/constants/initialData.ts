@@ -1,7 +1,7 @@
 import { Prize, Winner, DrawSettings } from '../types';
 
 export const INITIAL_DRAW_SETTINGS: DrawSettings = {
-  drawDateIST: '2026-12-25T00:00:00+05:30',
+  drawDateIST: '2026-12-24T23:00:00+05:30',
   timezone: 'Asia/Kolkata',
   isPublished: false,
   publishedAt: null,
@@ -12,8 +12,8 @@ export const INITIAL_DRAW_SETTINGS: DrawSettings = {
   heroHeadline_ml: 'ക്രിസ്മസ്–പുതുവത്സര ഭാഗ്യനറുക്കെടുപ്പ്',
   heroSubtitle: "Welcome to the official KCYM St. Mary's Church, Nellayi Prize Coupon Results portal.",
   heroSubtitle_ml: 'നെല്ലായി സെന്റ് മേരീസ് പള്ളി കെ.സി.വൈ.എം. ക്രിസ്മസ് കൂപ്പൺ നറുക്കെടുപ്പിന്റെ ഔദ്യോഗിക ഫലങ്ങളിലേക്ക് സ്വാഗതം.',
-  announcementText: 'Grand Draw will be held at 12:00 AM IST on December 25, 2026, following the Holy Mass and Carol Service.',
-  announcementText_ml: 'വിശുദ്ധ കുർബാനയ്ക്കും കരോളിനും ശേഷം 2026 ഡിസംബർ 25-ന് അർദ്ധരാത്രി 12:00 മണിക്ക് മഹാ നറുക്കെടുപ്പ് നടക്കും.',
+  announcementText: 'Grand Draw will be held at 11:00 PM IST on December 24, 2026, following the Holy Mass and Carol Service.',
+  announcementText_ml: 'വിശുദ്ധ കുർബാനയ്ക്കും കരോളിനും ശേഷം 2026 ഡിസംബർ 24-ന് രാത്രി 11:00 മണിക്ക് മഹാ നറുക്കെടുപ്പ് നടക്കും.',
   contactPhone: '+91 94470 12345 / 0480 2751234',
   contactEmail: 'kcymnellayi@gmail.com',
   churchAddress: "St. Mary's Church, Nellayi P.O., Thrissur District, Kerala - 680305, India",

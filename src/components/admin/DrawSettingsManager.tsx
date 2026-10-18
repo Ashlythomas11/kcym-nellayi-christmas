@@ -178,13 +178,13 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
                 required
                 value={formData.drawDateIST}
                 onChange={(e) => handleFormChange('drawDateIST', e.target.value)}
-                placeholder="2026-12-25T00:00:00+05:30"
+                placeholder="2026-12-24T23:00:00+05:30"
                 className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-mono text-sm focus:ring-2 focus:ring-christmas-gold"
               />
               <Clock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
             </div>
             <p className="text-[11px] text-gray-500">
-              Default: <code>2026-12-25T00:00:00+05:30</code> (Dec 25, 2026 12:00 AM IST)
+              Default: <code>2026-12-24T23:00:00+05:30</code> (Dec 24, 2026 11:00 PM IST)
             </p>
           </div>
 

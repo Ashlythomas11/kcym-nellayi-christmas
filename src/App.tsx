@@ -24,7 +24,7 @@ import {
   checkCouponNumber,
 } from './services/storage';
 import { triggerWinnerCelebration } from './utils/confetti';
-import { getSupabaseClient } from './services/supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from './services/supabaseClient';
 
 export function App() {
   const [language, setLanguage] = useState<Language>('en');
@@ -34,6 +34,7 @@ export function App() {
   // Core reactive data states
   const [drawSettings, setDrawSettings] = useState<DrawSettings>(INITIAL_DRAW_SETTINGS);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [cloudDataError, setCloudDataError] = useState<string | null>(null);
   const hasLoadedCloudSettings = useRef(false);
   const hasLoadedCloudPrizes = useRef(false);
   const hasLoadedCloudWinners = useRef(false);
@@ -59,7 +60,10 @@ export function App() {
             setPrizes(cloudPrizes);
           }
         })
-        .catch((error) => console.error('Unable to refresh the prize catalog:', error));
+        .catch((error) => {
+          console.error('Unable to refresh the prize catalog:', error);
+          setCloudDataError('The latest shared prize and winner data could not be loaded. Please refresh the page or contact the administrator.');
+        });
     }
     if (hasLoadedCloudSettings.current && (s.isPublished || adminUser)) {
       void fetchWinnersFromSupabase(Boolean(adminUser))
@@ -68,7 +72,10 @@ export function App() {
           hasLoadedCloudWinners.current = true;
           setWinners(cloudWinners);
         })
-        .catch((error) => console.error('Unable to refresh winning coupons:', error));
+        .catch((error) => {
+          console.error('Unable to refresh winning coupons:', error);
+          setCloudDataError('The latest shared prize and winner data could not be loaded. Please refresh the page or contact the administrator.');
+        });
     } else if (hasLoadedCloudSettings.current) {
       hasLoadedCloudWinners.current = false;
       setWinners([]);
@@ -90,6 +97,15 @@ export function App() {
     let channel: ReturnType<NonNullable<ReturnType<typeof getSupabaseClient>>['channel']> | undefined;
 
     const refreshPublishedData = async () => {
+      if (!getSupabaseClient()) {
+        setCloudDataError(
+          isSupabaseConfigured()
+            ? 'The shared database connection could not be initialized.'
+            : 'This website is not connected to its shared database. Configure the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.'
+        );
+        return;
+      }
+
       try {
         const [settings, cloudPrizes, cloudWinners] = await Promise.all([
           fetchDrawSettingsFromSupabase(),
@@ -113,8 +129,10 @@ export function App() {
           hasLoadedCloudWinners.current = false;
           setWinners([]);
         }
+        setCloudDataError(null);
       } catch (error) {
         console.error('Unable to refresh published draw data:', error);
+        setCloudDataError('The latest shared prize and winner data could not be loaded. Please refresh the page or contact the administrator.');
       }
     };
 
@@ -130,7 +148,14 @@ export function App() {
     const loadDrawSettings = async () => {
       try {
         const supabase = getSupabaseClient();
-        if (!supabase) return;
+        if (!supabase) {
+          setCloudDataError(
+            isSupabaseConfigured()
+              ? 'The shared database connection could not be initialized.'
+              : 'This website is not connected to its shared database. Configure the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.'
+          );
+          return;
+        }
 
         channel = supabase
           .channel('public-draw-settings')
@@ -156,18 +181,16 @@ export function App() {
           setPrizes(cloudPrizes);
         }
         if (liveSettings.isPublished) {
-          try {
-            const cloudWinners = await fetchWinnersFromSupabase();
-            if (cloudWinners && isActive) {
-              hasLoadedCloudWinners.current = true;
-              setWinners(cloudWinners);
-            }
-          } catch (error) {
-            console.error('Unable to load published winning coupons:', error);
+          const cloudWinners = await fetchWinnersFromSupabase();
+          if (cloudWinners && isActive) {
+            hasLoadedCloudWinners.current = true;
+            setWinners(cloudWinners);
           }
         }
+        setCloudDataError(null);
       } catch (error) {
         console.error('Unable to load live draw settings; using default settings:', error);
+        setCloudDataError('The latest shared prize and winner data could not be loaded. Please refresh the page or contact the administrator.');
       } finally {
         if (isActive) setIsSettingsLoading(false);
       }
@@ -231,12 +254,15 @@ export function App() {
           hasLoadedCloudWinners.current = true;
           setWinners(cloudWinners);
         } else {
-          setWinners(getWinners(true));
+          setWinners([]);
+          setCloudDataError('Administrator results could not be loaded from the shared database.');
         }
+        if (cloudWinners) setCloudDataError(null);
       })
       .catch((error) => {
         console.error('Unable to load administrator winners from Supabase:', error);
-        setWinners(getWinners(true));
+        setWinners([]);
+        setCloudDataError('Administrator results could not be loaded from the shared database.');
       });
   };
 
@@ -302,6 +328,7 @@ export function App() {
           drawSettings={drawSettings}
           auditLogs={auditLogs}
           language={language}
+          cloudDataError={cloudDataError}
           onRefresh={reloadData}
           onLogout={handleLogout}
           onReturnToPublic={() => setCurrentView('public')}
@@ -346,6 +373,7 @@ export function App() {
               prizes={prizes}
               winners={winners}
               language={language}
+              dataError={cloudDataError}
             />
 
             <ChurchInfoSection

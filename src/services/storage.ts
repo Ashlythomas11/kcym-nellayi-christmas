@@ -37,7 +37,8 @@ export function getDrawSettings(): DrawSettings {
       const settings: DrawSettings = JSON.parse(raw);
       const hasLegacyDrawDate =
         settings.drawDateIST === '2026-12-24T19:00:00+05:30' ||
-        settings.drawDateIST === '2026-12-24T00:00:00+05:30';
+        settings.drawDateIST === '2026-12-24T00:00:00+05:30' ||
+        settings.drawDateIST === '2026-12-25T00:00:00+05:30';
       const legacyMalayalamVenues = [
         'സെന്റ് മേരീസ് ഫൊറോന പള്ളി പാരിഷ് ഹാൾ, നെല്ലായി, തൃശൂർ',
         'സെന്റ് മേരീസ് ഫൊറോന പള്ളി പാരിഷ് ഹാൾ, നെല്ലായി',
@@ -57,12 +58,14 @@ export function getDrawSettings(): DrawSettings {
         ...(hasLegacyDrawDate && [
           'Grand Draw will be held on Christmas Eve, December 24, 2026 at 7:00 PM IST following the Holy Mass and Carol Service.',
           'Grand Draw will be held at 12:00 AM IST on December 24, 2026, following the Holy Mass and Carol Service.',
+          'Grand Draw will be held at 12:00 AM IST on December 25, 2026, following the Holy Mass and Carol Service.',
         ].includes(settings.announcementText)
           ? { announcementText: INITIAL_DRAW_SETTINGS.announcementText }
           : {}),
         ...(hasLegacyDrawDate && [
           '2026 ഡിസംബർ 24 ക്രിസ്മസ് രാവിൽ വൈകിട്ട് 7:00 മണിക്ക് വിശുദ്ധ കുർബാനയ്ക്കും കരോളിനും ശേഷം മഹാ നറുക്കെടുപ്പ് നടക്കും.',
           'വിശുദ്ധ കുർബാനയ്ക്കും കരോളിനും ശേഷം 2026 ഡിസംബർ 24-ന് അർദ്ധരാത്രി 12:00 മണിക്ക് മഹാ നറുക്കെടുപ്പ് നടക്കും.',
+          'വിശുദ്ധ കുർബാനയ്ക്കും കരോളിനും ശേഷം 2026 ഡിസംബർ 25-ന് അർദ്ധരാത്രി 12:00 മണിക്ക് മഹാ നറുക്കെടുപ്പ് നടക്കും.',
         ].includes(settings.announcementText_ml)
           ? { announcementText_ml: INITIAL_DRAW_SETTINGS.announcementText_ml }
           : {}),
@@ -858,7 +861,7 @@ export async function fetchWinnersFromSupabase(isAdmin = false): Promise<Winner[
 async function saveWinnerToSupabase(
   supabase: NonNullable<ReturnType<typeof getSupabaseClient>>,
   winner: Winner,
-): Promise<Winner> {
+): Promise<{ winners: Winner[]; wasUpdate: boolean }> {
   const { data: row, error: readError } = await supabase
     .from('draw_settings')
     .select('id, prizes')
@@ -869,6 +872,10 @@ async function saveWinnerToSupabase(
   }
   const prizeRows = row?.prizes ?? getPrizes();
   const prizes = parsePrizes(prizeRows);
+  if (!prizes.some((prize) => prize.id === winner.prizeId)) {
+    throw new Error('The selected prize could not be found in the shared database.');
+  }
+
   const winners = getWinnersFromPrizeRows(prizeRows);
   const normalizedCoupon = winner.winningCouponNumber.trim().toUpperCase();
   const duplicate = winners.find((entry) =>
@@ -907,7 +914,15 @@ async function saveWinnerToSupabase(
   if (!data || Number(data.id) !== 1) {
     throw new Error('Supabase did not confirm saving the winner to draw settings row 1.');
   }
-  return getWinnersFromPrizeRows(data.prizes).find((entry) => entry.prizeId === winner.prizeId) ?? savedWinner;
+  const savedWinners = getWinnersFromPrizeRows(data.prizes);
+  if (!savedWinners.some((entry) => entry.prizeId === winner.prizeId)) {
+    throw new Error('Supabase returned the draw settings row without the saved winner assignment.');
+  }
+
+  return {
+    winners: savedWinners,
+    wasUpdate: existingIndex >= 0,
+  };
 }
 
 /**
@@ -920,64 +935,30 @@ export async function saveWinner(winner: Winner, adminEmail: string): Promise<{ 
     return { success: false, error: 'Supabase is not connected. The winner was not saved.' };
   }
 
-  const winners = getStoredWinners();
   const normalizedCoupon = winner.winningCouponNumber.trim().toUpperCase();
 
-  // Duplicate coupon check
-  const duplicate = winners.find(
-    (w) => w.winningCouponNumber.trim().toUpperCase() === normalizedCoupon && w.id !== winner.id
-  );
-
-  if (duplicate) {
-    return {
-      success: false,
-      error: `Coupon number "${winner.winningCouponNumber}" is already assigned as a winner! Duplicate coupon numbers are not allowed.`,
-    };
-  }
-
-  const prize = getPrizes().find((item) => item.id === winner.prizeId);
-  if (!prize) {
-    return { success: false, error: 'The selected prize could not be found.' };
-  }
-
-  let savedWinner: Winner;
+  let saveResult: Awaited<ReturnType<typeof saveWinnerToSupabase>>;
   try {
-    savedWinner = await saveWinnerToSupabase(supabase, winner);
+    saveResult = await saveWinnerToSupabase(supabase, winner);
   } catch (error) {
     console.error('Failed to save winner to Supabase:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unable to save winner to Supabase.' };
   }
 
-  const existingIndex = winners.findIndex((w) => w.id === winner.id || w.prizeId === winner.prizeId);
-  let updatedList: Winner[];
-
-  if (existingIndex >= 0) {
-    updatedList = [...winners];
-    updatedList[existingIndex] = {
-      ...winners[existingIndex],
-      ...savedWinner,
-    };
-    addAuditLog(
-      'WINNER_UPDATE',
-      `Updated winner for prize ID ${winner.prizeId}: Coupon #${normalizedCoupon} (${winner.winnerName})`,
-      adminEmail
-    );
-  } else {
-    updatedList = [
-      ...winners,
-      savedWinner,
-    ];
-    addAuditLog(
-      'WINNER_CREATE',
-      `Added winner for prize ID ${winner.prizeId}: Coupon #${normalizedCoupon} (${winner.winnerName})`,
-      adminEmail
-    );
+  try {
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(saveResult.winners));
+  } catch (error) {
+    console.warn('Winner was saved to Supabase, but the local cache could not be updated:', error);
   }
 
   try {
-    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(updatedList));
+    addAuditLog(
+      saveResult.wasUpdate ? 'WINNER_UPDATE' : 'WINNER_CREATE',
+      `${saveResult.wasUpdate ? 'Updated' : 'Added'} winner for prize ID ${winner.prizeId}: Coupon #${normalizedCoupon} (${winner.winnerName})`,
+      adminEmail
+    );
   } catch (error) {
-    console.warn('Winner was saved to Supabase, but the local cache could not be updated:', error);
+    console.warn('Winner was saved to Supabase, but the local audit log could not be updated:', error);
   }
   notifyDataChange();
   return { success: true };

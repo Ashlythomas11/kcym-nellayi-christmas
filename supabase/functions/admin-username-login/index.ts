@@ -36,16 +36,19 @@ Deno.serve(async (request: Request) => {
     return jsonResponse(400, { error: 'Invalid request.' });
   }
   const { username, password } = payload;
+  const normalizedUsername = typeof username === 'string' ? username.trim() : '';
   if (
     typeof username !== 'string' ||
     typeof password !== 'string' ||
-    !username.trim() ||
-    !password ||
-    username.length > 64 ||
+    !normalizedUsername ||
+    !password.trim() ||
+    normalizedUsername.length > 64 ||
     password.length > 1024
   ) {
     return jsonResponse(400, { error: 'Invalid username or password.' });
   }
+
+  const normalizedUsernameKey = normalizedUsername.toLowerCase();
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -61,7 +64,7 @@ Deno.serve(async (request: Request) => {
   const { data: account, error: lookupError } = await serviceClient
     .from('admin_usernames')
     .select('email')
-    .eq('username', username.trim().toLowerCase())
+    .eq('username', normalizedUsernameKey)
     .maybeSingle();
 
   if (lookupError) {
@@ -76,7 +79,7 @@ Deno.serve(async (request: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data, error: authError } = await authClient.auth.signInWithPassword({
-    email: account.email,
+    email: account.email.trim().toLowerCase(),
     password,
   });
 

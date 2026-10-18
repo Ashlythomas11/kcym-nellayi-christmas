@@ -21,6 +21,7 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
   const [winnerName, setWinnerName] = useState('');
   const [winnerLocation, setWinnerLocation] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleStartEdit = (prize: Prize, existingWinner?: Winner) => {
@@ -29,10 +30,12 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
     setWinnerName(existingWinner?.winnerName || '');
     setWinnerLocation(existingWinner?.winnerLocation || '');
     setErrorMessage('');
+    setSuccessMessage('');
   };
 
   const handleSave = async (prizeId: string) => {
     setErrorMessage('');
+    setSuccessMessage('');
 
     if (!couponNumber.trim()) {
       setErrorMessage('Winning coupon number is required.');
@@ -63,6 +66,7 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
       }
 
       setEditingPrizeId(null);
+      setSuccessMessage('Winner saved to the shared database.');
       onRefresh();
     } catch (error) {
       console.error('Failed to save winner:', error);
@@ -76,9 +80,12 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
     if (confirm('Are you sure you want to remove this winner assignment?')) {
       try {
         await deleteWinner(winnerId, adminUser.email);
+        setErrorMessage('');
+        setSuccessMessage('Winner assignment removed from the shared database.');
         onRefresh();
       } catch (error) {
         console.error('Failed to delete winner:', error);
+        setSuccessMessage('');
         setErrorMessage(error instanceof Error ? error.message : 'Failed to delete winner.');
       }
     }
@@ -107,9 +114,15 @@ export const WinnerManager: React.FC<WinnerManagerProps> = ({
 
       {/* Duplicate warning notification if any */}
       {errorMessage && (
-        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 text-red-900 text-xs sm:text-sm flex items-center gap-3">
+        <div role="alert" className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 text-red-900 text-xs sm:text-sm flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
           <span className="font-semibold">{errorMessage}</span>
+        </div>
+      )}
+      {successMessage && (
+        <div role="status" className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 text-emerald-900 text-xs sm:text-sm flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+          <span className="font-semibold">{successMessage}</span>
         </div>
       )}
 

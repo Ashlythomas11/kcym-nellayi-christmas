@@ -15,6 +15,7 @@ interface ResultsViewProps {
   winners: Winner[];
   language: Language;
   onSearchRequest?: (coupon: string) => void;
+  dataError?: string | null;
 }
 
 export const ResultsView: React.FC<ResultsViewProps> = ({
@@ -22,6 +23,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   prizes,
   winners,
   language,
+  dataError,
 }) => {
   const [searchInput, setSearchInput] = useState('');
   const [filterText, setFilterText] = useState('');
@@ -85,8 +87,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     <section id="results" ref={revealRef} data-reveal className="scroll-mt-24 py-16 bg-christmas-darkGreen border-b border-christmas-gold/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* PRE-PUBLICATION STATE */}
-        {!drawSettings.isPublished ? (
+        {dataError ? (
+          <div role="alert" className="max-w-4xl mx-auto rounded-3xl border-2 border-red-300 bg-red-50 p-6 sm:p-8 text-center text-red-900 shadow-xl">
+            <h2 className="font-serif text-xl sm:text-2xl font-bold">
+              {language === 'en' ? 'Live results are temporarily unavailable' : 'തത്സമയ ഫലങ്ങൾ താൽക്കാലികമായി ലഭ്യമല്ല'}
+            </h2>
+            <p className="mt-2 text-sm">
+              {dataError}
+            </p>
+          </div>
+        ) : !drawSettings.isPublished ? (
           <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8 bg-christmas-ivory rounded-3xl p-5 sm:p-8 md:p-12 border-2 border-christmas-gold/40 shadow-xl">
             <div className="w-20 h-20 mx-auto rounded-full bg-christmas-gold/15 border-2 border-christmas-gold/50 flex items-center justify-center">
               <Calendar className="w-10 h-10 text-christmas-red" />

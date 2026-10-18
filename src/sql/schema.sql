@@ -6,7 +6,7 @@
 -- 1. Create Draw Settings Table
 CREATE TABLE IF NOT EXISTS public.draw_settings (
     id INT PRIMARY KEY DEFAULT 1,
-    draw_date_ist TIMESTAMPTZ NOT NULL DEFAULT '2026-12-25 00:00:00+05:30',
+    draw_date_ist TIMESTAMPTZ NOT NULL DEFAULT '2026-12-24 23:00:00+05:30',
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     is_published BOOLEAN NOT NULL DEFAULT false,
     published_at TIMESTAMPTZ,
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
     hero_headline_ml TEXT DEFAULT 'ക്രിസ്മസ് സന്തോഷം. ആകർഷകമായ സമ്മാനങ്ങൾ. ഭാഗ്യശാലികൾ!',
     hero_subtitle TEXT NOT NULL DEFAULT 'Welcome to the official KCYM St. Mary''s Church, Nellayi Prize Coupon Results portal.',
     hero_subtitle_ml TEXT DEFAULT 'നെല്ലായി സെന്റ് മേരീസ് പള്ളി കെ.സി.വൈ.എം. ക്രിസ്മസ് ഭാഗ്യക്കുറി ഔദ്യോഗിക ഫലങ്ങളിലേക്ക് സ്വാഗതം.',
-    announcement_text TEXT DEFAULT 'Grand Draw on Christmas Day, Dec 25, 2026 at 12:00 AM IST.',
-    announcement_text_ml TEXT DEFAULT '2026 ഡിസംബർ 25-ന് അർദ്ധരാത്രി 12:00 മണിക്ക് നറുക്കെടുപ്പ് നടക്കും.',
+    announcement_text TEXT DEFAULT 'Grand Draw on December 24, 2026 at 11:00 PM IST.',
+    announcement_text_ml TEXT DEFAULT '2026 ഡിസംബർ 24-ന് രാത്രി 11:00 മണിക്ക് നറുക്കെടുപ്പ് നടക്കും.',
     contact_phone TEXT DEFAULT '+91 94470 12345 / 0480 2751234',
     contact_email TEXT DEFAULT 'kcymnellayi@gmail.com',
     church_address TEXT DEFAULT 'St. Mary''s Church, Nellayi P.O., Thrissur - 680305, Kerala',
@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
 );
 ALTER TABLE public.draw_settings
     ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+INSERT INTO public.draw_settings (id)
+VALUES (1)
+ON CONFLICT (id) DO NOTHING;
 
 -- Migrate existing winner rows once when the legacy tables are present.
 DO $$

@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { Database, Copy, Check, ExternalLink, Download, Upload, RefreshCw, Key, ShieldCheck } from 'lucide-react';
-import { getSupabaseCredentials, saveSupabaseCredentials, isSupabaseConfigured } from '../../services/supabaseClient';
+import {
+  getSupabaseCredentials,
+  saveSupabaseCredentials,
+  isSupabaseConfigured,
+  isSupabaseConfiguredByEnvironment,
+} from '../../services/supabaseClient';
 import { exportDataJSON, importDataJSON, resetToDefaults } from '../../services/storage';
 import { AdminUser } from '../../types';
 
@@ -19,9 +24,14 @@ export const SupabaseSetupModal: React.FC<SupabaseSetupModalProps> = ({ adminUse
   const [statusMsg, setStatusMsg] = useState('');
 
   const configured = isSupabaseConfigured();
+  const environmentConfigured = isSupabaseConfiguredByEnvironment();
 
   const handleSaveCredentials = (e: React.FormEvent) => {
     e.preventDefault();
+    if (environmentConfigured) {
+      setStatusMsg('This deployment uses its VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables. Update them in the Vercel project settings and redeploy.');
+      return;
+    }
     try {
       saveSupabaseCredentials(supabaseUrl, anonKey);
       setStatusMsg('Supabase configuration updated! Reloading connection...');
@@ -87,7 +97,7 @@ GRANT SELECT ON TABLE public.admin_usernames TO service_role;
 
 CREATE TABLE IF NOT EXISTS public.draw_settings (
     id INT PRIMARY KEY DEFAULT 1,
-    draw_date_ist TIMESTAMPTZ NOT NULL DEFAULT '2026-12-25 00:00:00+05:30',
+    draw_date_ist TIMESTAMPTZ NOT NULL DEFAULT '2026-12-24 23:00:00+05:30',
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     is_published BOOLEAN NOT NULL DEFAULT false,
     published_at TIMESTAMPTZ,
@@ -109,6 +119,7 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
 );
 ALTER TABLE public.draw_settings
   ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb;
+INSERT INTO public.draw_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 DO $$
 BEGIN
   IF to_regclass('public.prizes') IS NOT NULL THEN
@@ -308,15 +319,19 @@ NOTIFY pgrst, 'reload schema';`;
             <div>
               <span className="text-xs font-bold text-gray-500 uppercase">Storage Mode:</span>
               <p className="font-bold text-christmas-emerald text-base">
-                {configured ? 'Connected to Supabase Cloud Backend' : 'Running in Unified Local Browser Storage'}
+                {configured ? 'Connected to Supabase Cloud Backend' : 'Shared database not configured'}
               </p>
             </div>
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
               configured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
             }`}>
-              {configured ? 'Cloud Synced' : 'Local Mode Active'}
+              {configured ? 'Cloud Connected' : 'Not Connected'}
             </span>
           </div>
+
+          <p className="text-xs text-gray-600">
+            Browser-saved credentials apply only to this device. To connect every visitor, configure the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables in Vercel. Never enter a service-role key here.
+          </p>
 
           {/* Form to enter / update Supabase keys */}
           <form onSubmit={handleSaveCredentials} className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-200">
@@ -333,6 +348,7 @@ NOTIFY pgrst, 'reload schema';`;
                 type="url"
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
+                disabled={environmentConfigured}
                 placeholder="https://your-project.supabase.co"
                 className="w-full p-2.5 rounded-xl border border-gray-300 font-mono text-xs"
               />
@@ -346,6 +362,7 @@ NOTIFY pgrst, 'reload schema';`;
                 type="password"
                 value={anonKey}
                 onChange={(e) => setAnonKey(e.target.value)}
+                disabled={environmentConfigured}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full p-2.5 rounded-xl border border-gray-300 font-mono text-xs"
               />
@@ -353,7 +370,8 @@ NOTIFY pgrst, 'reload schema';`;
 
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-xs"
+              disabled={environmentConfigured}
+              className="px-4 py-2 rounded-xl bg-christmas-emerald hover:bg-christmas-darkGreen text-white font-bold text-xs disabled:cursor-not-allowed disabled:opacity-50"
             >
               Save Credentials & Connect
             </button>

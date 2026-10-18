@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QrCode, Download, ExternalLink, Printer, Check, Copy, Sparkles, Church } from 'lucide-react';
 import QRCode from 'qrcode';
 import { DrawSettings } from '../../types';
+import { formatToIST } from '../../utils/timezone';
 
 interface QRCodeStudioProps {
   drawSettings: DrawSettings;
@@ -188,7 +189,7 @@ export const QRCodeStudio: React.FC<QRCodeStudioProps> = ({ drawSettings }) => {
                   Christmas Prize Coupon 2026
                 </h5>
                 <p className="text-xs text-gray-600">
-                  Draw Date: Dec 25, 2026 • 12:00 AM IST | Contribution: {drawSettings.couponPrice}
+                  Draw Date: {formatToIST(drawSettings.drawDateIST)} | Contribution: {drawSettings.couponPrice}
                 </p>
                 <div className="pt-2 flex items-center justify-center sm:justify-start gap-3">
                   <span className="font-mono text-xs font-black bg-christmas-gold/20 text-christmas-darkGreen px-2.5 py-1 rounded-md border border-christmas-gold/50">

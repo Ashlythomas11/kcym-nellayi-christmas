@@ -16,6 +16,7 @@ interface AdminDashboardProps {
   drawSettings: DrawSettings;
   auditLogs: AuditLog[];
   language: Language;
+  cloudDataError?: string | null;
   onRefresh: () => void;
   onLogout: () => void;
   onReturnToPublic: () => void;
@@ -30,6 +31,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   drawSettings,
   auditLogs,
   language,
+  cloudDataError,
   onRefresh,
   onLogout,
   onReturnToPublic,
@@ -180,6 +182,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Main Tab Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {cloudDataError && (
+          <div role="alert" className="mb-6 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            {cloudDataError}
+          </div>
+        )}
+
         {activeTab === 'status' && (
           <DrawSettingsManager
             drawSettings={drawSettings}
@@ -225,6 +233,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 prizes={prizes}
                 winners={winners}
                 language={language}
+                dataError={cloudDataError}
               />
             </div>
           </div>

@@ -4,6 +4,13 @@ import christmasBackground from '../../1e217dbcfc36f8918a9cc66ad3e51939.jpg';
 import { Language, DrawSettings } from '../types';
 import { translations } from '../constants/translations';
 
+function formatDrawDate(date: string, language: Language, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'ml-IN', {
+    ...options,
+    timeZone: 'Asia/Kolkata',
+  }).format(new Date(date));
+}
+
 interface HeroProps {
   language: Language;
   drawSettings: DrawSettings;
@@ -18,6 +25,16 @@ export const Hero: React.FC<HeroProps> = ({
   onCheckResults,
 }) => {
   const t = translations[language];
+  const formattedDrawDate = formatDrawDate(drawSettings.drawDateIST, language, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const formattedDrawTime = formatDrawDate(drawSettings.drawDateIST, language, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 
   return (
     <section id="hero" className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-christmas-darkGreen via-christmas-emerald to-christmas-darkGreen text-christmas-ivory py-12 lg:py-20 border-b border-christmas-gold/30">
@@ -132,7 +149,7 @@ export const Hero: React.FC<HeroProps> = ({
                         {language === 'en' ? 'Draw Date' : 'നറുക്കെടുപ്പ് തീയതി'}
                       </p>
                       <p className="text-sm font-bold text-christmas-ivory">
-                        {language === 'en' ? 'December 25, 2026 (Christmas Day)' : '2026 ഡിസംബർ 25 (ക്രിസ്മസ് ദിനം)'}
+                        {formattedDrawDate}
                       </p>
                     </div>
                   </div>
@@ -144,7 +161,7 @@ export const Hero: React.FC<HeroProps> = ({
                         {language === 'en' ? 'Draw Time (IST)' : 'നറുക്കെടുപ്പ് സമയം (IST)'}
                       </p>
                       <p className="text-sm font-bold text-christmas-ivory">
-                        12:00 AM (Asia/Kolkata)
+                        {formattedDrawTime} (Asia/Kolkata)
                       </p>
                     </div>
                   </div>

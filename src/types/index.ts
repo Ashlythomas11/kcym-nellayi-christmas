@@ -29,7 +29,7 @@ export interface Winner {
 }
 
 export interface DrawSettings {
-  drawDateIST: string; // ISO string e.g. "2026-12-25T00:00:00+05:30"
+  drawDateIST: string; // ISO string e.g. "2026-12-24T23:00:00+05:30"
   timezone: string; // "Asia/Kolkata"
   isPublished: boolean;
   publishedAt: string | null;
