@@ -73,7 +73,7 @@ export const translations = {
       aboutTitle: 'About KCYM St. Mary\'s Church, Nellayi',
       aboutDesc: 'The Kerala Catholic Youth Movement (KCYM) unit of St. Mary\'s Church, Nellayi, has been vibrant in spiritual leadership, parish community service, and youth empowerment. Proceeds from this Christmas coupon drive support charitable projects, youth education seminars, Christmas celebrations, and the church festival.',
       rulesTitle: 'Coupon Guidelines & Claim Rules',
-      rule1: '1. The draw takes place on December 24, 2026 at 11:00 PM IST at St. Mary\'s Church Parish Hall in the presence of parish authorities.',
+      rule1: '1. The draw takes place on December 24, 2026 at 11:00 PM IST at St. Mary\'s Church in the presence of parish authorities.',
       rule2: '2. Winning coupons must be produced in original along with valid government photo identification within 30 days.',
       rule3: '3. In case of duplicate claims or disputes, the decision of the Parish Vicar and KCYM Advisory Board is final.',
       rule4: '4. Prizes are non-transferable and cannot be exchanged for cash unless specifically authorized.',

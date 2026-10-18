@@ -105,13 +105,24 @@ export const Footer: React.FC<FooterProps> = ({ language, onOpenAdmin }) => {
         </div>
 
         {/* Bottom credits */}
-        <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-christmas-champagne/70 gap-3 text-center sm:text-left">
-          <p>{t.footer.copyright}</p>
-          <p className="flex items-center justify-center gap-1">
-            <span>Built with devotion & care for Nellayi Parish</span>
-            <Heart className="w-3.5 h-3.5 text-christmas-red fill-christmas-red" />
-          </p>
-        </div>
+       
+{/* Bottom credits */}
+<div className="flex flex-col items-center gap-3 border-t border-christmas-gold/20 pt-5 text-xs text-christmas-champagne/70 text-center">
+  <p>{t.footer.copyright}</p>
+
+  <p className="flex items-center justify-center gap-1">
+    <span>Built with devotion & care for Nellayi Parish</span>
+    <Heart className="w-3.5 h-3.5 text-christmas-red fill-christmas-red" />
+  </p>
+
+  <p>
+    Website designed and developed by{" "}
+    <span className="font-semibold text-christmas-lightGold">
+      Ashly Thomas
+    </span>
+  </p>
+</div>
+
 
       </div>
     </footer>
