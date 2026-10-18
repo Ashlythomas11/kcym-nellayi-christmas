@@ -91,6 +91,16 @@ CREATE POLICY "Public can view settings" ON public.draw_settings FOR SELECT USIN
 CREATE POLICY "Admins can edit settings" ON public.draw_settings FOR ALL TO authenticated
 USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
 WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'draw_settings'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.draw_settings;
+  END IF;
+END
+$$;
 
 -- Winners policy strictly hiding unpublished numbers:
 DROP POLICY IF EXISTS "Public can only view published winners" ON public.winners;

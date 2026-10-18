@@ -85,59 +85,63 @@ export function getDrawSettings(): DrawSettings {
 }
 
 export async function updateDrawSettings(settings: Partial<DrawSettings>, adminEmail: string): Promise<DrawSettings> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured. Draw settings were not saved.');
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Unable to initialize Supabase. Draw settings were not saved.');
+  }
+
   const current = getDrawSettings();
   const updated: DrawSettings = {
     ...current,
     ...settings,
   };
 
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
-
-  addAuditLog(
-    'SETTINGS_UPDATE',
-    `Updated draw settings (Date: ${updated.drawDateIST}, Price: ${updated.couponPrice})`,
-    adminEmail
-  );
-
-  if (isSupabaseConfigured()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      throw new Error('Settings were saved in this browser, but the cloud database could not be initialized.');
-    }
-
-    const { data, error } = await supabase
-      .from('draw_settings')
-      .upsert({
-        id: 1,
-        draw_date_ist: updated.drawDateIST,
-        timezone: updated.timezone,
-        is_published: updated.isPublished,
-        published_at: updated.publishedAt,
-        published_by: updated.publishedBy,
-        draw_venue: updated.drawVenue,
-        draw_venue_ml: updated.drawVenue_ml,
-        hero_headline: updated.heroHeadline,
-        hero_headline_ml: updated.heroHeadline_ml,
-        hero_subtitle: updated.heroSubtitle,
-        hero_subtitle_ml: updated.heroSubtitle_ml,
-        announcement_text: updated.announcementText,
-        announcement_text_ml: updated.announcementText_ml,
-        contact_phone: updated.contactPhone,
-        contact_email: updated.contactEmail,
-        church_address: updated.churchAddress,
-        coupon_price: updated.couponPrice,
-      }, { onConflict: 'id' })
-      .select()
-      .single();
-    if (error) {
-      throw new Error(`Settings were saved in this browser, but cloud sync failed: ${error.message}`);
-    }
-    if (data.id !== 1) {
-      throw new Error(`Settings were saved in this browser, but Supabase returned unexpected row id ${data.id}.`);
-    }
-    console.info('Supabase draw settings row saved:', data);
+  const { data, error } = await supabase
+    .from('draw_settings')
+    .upsert({
+      id: 1,
+      draw_date_ist: updated.drawDateIST,
+      timezone: updated.timezone,
+      is_published: updated.isPublished,
+      published_at: updated.publishedAt,
+      published_by: updated.publishedBy,
+      draw_venue: updated.drawVenue,
+      draw_venue_ml: updated.drawVenue_ml,
+      hero_headline: updated.heroHeadline,
+      hero_headline_ml: updated.heroHeadline_ml,
+      hero_subtitle: updated.heroSubtitle,
+      hero_subtitle_ml: updated.heroSubtitle_ml,
+      announcement_text: updated.announcementText,
+      announcement_text_ml: updated.announcementText_ml,
+      contact_phone: updated.contactPhone,
+      contact_email: updated.contactEmail,
+      church_address: updated.churchAddress,
+      coupon_price: updated.couponPrice,
+    }, { onConflict: 'id' })
+    .select()
+    .single();
+  if (error) {
+    throw new Error(`Cloud save failed. Draw settings were not saved locally: ${error.message}`);
+  }
+  if (data.id !== 1) {
+    throw new Error(`Supabase returned unexpected draw settings row id ${data.id}.`);
   }
 
+  try {
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+    addAuditLog(
+      'SETTINGS_UPDATE',
+      `Updated draw settings (Date: ${updated.drawDateIST}, Price: ${updated.couponPrice})`,
+      adminEmail
+    );
+  } catch (error) {
+    console.warn('Settings were saved to Supabase, but local cache or audit log could not be updated:', error);
+  }
+  console.info('Supabase draw settings row saved:', data);
   notifyDataChange();
   return updated;
 }

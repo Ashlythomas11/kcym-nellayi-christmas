@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { CountdownTimer } from './components/CountdownTimer';
@@ -23,6 +23,30 @@ import {
 import { triggerWinnerCelebration } from './utils/confetti';
 import { getSupabaseClient } from './services/supabaseClient';
 
+function mapDrawSettings(data: Record<string, unknown>): DrawSettings {
+  return {
+    ...INITIAL_DRAW_SETTINGS,
+    drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : INITIAL_DRAW_SETTINGS.drawDateIST,
+    timezone: typeof data.timezone === 'string' ? data.timezone : INITIAL_DRAW_SETTINGS.timezone,
+    isPublished: typeof data.is_published === 'boolean' ? data.is_published : INITIAL_DRAW_SETTINGS.isPublished,
+    publishedAt: typeof data.published_at === 'string' ? data.published_at : null,
+    publishedBy: typeof data.published_by === 'string' ? data.published_by : null,
+    drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : INITIAL_DRAW_SETTINGS.drawVenue,
+    drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : INITIAL_DRAW_SETTINGS.drawVenue_ml,
+    heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : INITIAL_DRAW_SETTINGS.heroHeadline,
+    heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : INITIAL_DRAW_SETTINGS.heroHeadline_ml,
+    heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : INITIAL_DRAW_SETTINGS.heroSubtitle,
+    heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : INITIAL_DRAW_SETTINGS.heroSubtitle_ml,
+    announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : INITIAL_DRAW_SETTINGS.announcementText,
+    announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : INITIAL_DRAW_SETTINGS.announcementText_ml,
+    contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : INITIAL_DRAW_SETTINGS.contactPhone,
+    contactEmail: typeof data.contact_email === 'string' ? data.contact_email : INITIAL_DRAW_SETTINGS.contactEmail,
+    churchAddress: typeof data.church_address === 'string' ? data.church_address : INITIAL_DRAW_SETTINGS.churchAddress,
+    churchAddress_ml: typeof data.church_address_ml === 'string' ? data.church_address_ml : INITIAL_DRAW_SETTINGS.churchAddress_ml,
+    couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : INITIAL_DRAW_SETTINGS.couponPrice,
+  };
+}
+
 export function App() {
   const [language, setLanguage] = useState<Language>('en');
   const [currentView, setCurrentView] = useState<'public' | 'admin-login' | 'admin-dashboard'>('public');
@@ -31,6 +55,7 @@ export function App() {
   // Core reactive data states
   const [drawSettings, setDrawSettings] = useState<DrawSettings>(INITIAL_DRAW_SETTINGS);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const hasLoadedCloudSettings = useRef(false);
   const [prizes, setPrizes] = useState<Prize[]>(getPrizes);
   const [winners, setWinners] = useState<Winner[]>(() => getWinners(false));
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(getAuditLogs);
@@ -41,7 +66,7 @@ export function App() {
   // Reload state from unified storage
   const reloadData = useCallback(() => {
     const s = getDrawSettings();
-    setDrawSettings(s);
+    if (!hasLoadedCloudSettings.current) setDrawSettings(s);
     setPrizes(getPrizes());
     setWinners(getWinners(Boolean(adminUser)));
     setAuditLogs(getAuditLogs());
@@ -56,11 +81,29 @@ export function App() {
   // Load shared settings before showing the public page to avoid flashing stale local values.
   useEffect(() => {
     let isActive = true;
+    let channel: ReturnType<NonNullable<ReturnType<typeof getSupabaseClient>>['channel']> | undefined;
 
     const loadDrawSettings = async () => {
       try {
         const supabase = getSupabaseClient();
         if (!supabase) return;
+
+        channel = supabase
+          .channel('public-draw-settings')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'draw_settings', filter: 'id=eq.1' },
+            (payload) => {
+              if (!isActive || !payload.new || Object.keys(payload.new).length === 0) return;
+              hasLoadedCloudSettings.current = true;
+              setDrawSettings(mapDrawSettings(payload.new));
+            }
+          )
+          .subscribe((status, error) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error('Live draw settings subscription failed:', error || status);
+            }
+          });
 
         const { data, error } = await supabase
           .from('draw_settings')
@@ -74,27 +117,8 @@ export function App() {
         }
         if (!data || !isActive) return;
 
-        setDrawSettings({
-          ...INITIAL_DRAW_SETTINGS,
-          drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : INITIAL_DRAW_SETTINGS.drawDateIST,
-          timezone: typeof data.timezone === 'string' ? data.timezone : INITIAL_DRAW_SETTINGS.timezone,
-          isPublished: typeof data.is_published === 'boolean' ? data.is_published : INITIAL_DRAW_SETTINGS.isPublished,
-          publishedAt: typeof data.published_at === 'string' ? data.published_at : null,
-          publishedBy: typeof data.published_by === 'string' ? data.published_by : null,
-          drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : INITIAL_DRAW_SETTINGS.drawVenue,
-          drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : INITIAL_DRAW_SETTINGS.drawVenue_ml,
-          heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : INITIAL_DRAW_SETTINGS.heroHeadline,
-          heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : INITIAL_DRAW_SETTINGS.heroHeadline_ml,
-          heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : INITIAL_DRAW_SETTINGS.heroSubtitle,
-          heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : INITIAL_DRAW_SETTINGS.heroSubtitle_ml,
-          announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : INITIAL_DRAW_SETTINGS.announcementText,
-          announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : INITIAL_DRAW_SETTINGS.announcementText_ml,
-          contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : INITIAL_DRAW_SETTINGS.contactPhone,
-          contactEmail: typeof data.contact_email === 'string' ? data.contact_email : INITIAL_DRAW_SETTINGS.contactEmail,
-          churchAddress: typeof data.church_address === 'string' ? data.church_address : INITIAL_DRAW_SETTINGS.churchAddress,
-          churchAddress_ml: typeof data.church_address_ml === 'string' ? data.church_address_ml : INITIAL_DRAW_SETTINGS.churchAddress_ml,
-          couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : INITIAL_DRAW_SETTINGS.couponPrice,
-        });
+        hasLoadedCloudSettings.current = true;
+        setDrawSettings(mapDrawSettings(data));
       } catch (error) {
         console.error('Unable to load live draw settings; using default settings:', error);
       } finally {
@@ -105,6 +129,7 @@ export function App() {
     void loadDrawSettings();
     return () => {
       isActive = false;
+      if (channel) void getSupabaseClient()?.removeChannel(channel);
     };
   }, []);
 

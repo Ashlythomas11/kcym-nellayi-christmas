@@ -44,7 +44,6 @@ export const DrawSettingsManager: React.FC<DrawSettingsManagerProps> = ({
     } catch (error) {
       console.error('Failed to save draw settings:', error);
       setSaveError(error instanceof Error ? error.message : 'Unable to save configuration. Please try again.');
-      onRefresh();
     } finally {
       setIsSaving(false);
     }
