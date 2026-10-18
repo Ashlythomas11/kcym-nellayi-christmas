@@ -13,6 +13,7 @@ export const PrizeManager: React.FC<PrizeManagerProps> = ({ prizes, adminUser, o
   const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleCreateNew = () => {
     const nextRank = prizes.length + 1;
@@ -46,16 +47,28 @@ export const PrizeManager: React.FC<PrizeManagerProps> = ({ prizes, adminUser, o
       return;
     }
 
-    await savePrize(editingPrize, adminUser.email);
-    setEditingPrize(null);
-    setIsNew(false);
-    onRefresh();
+    setErrorMessage('');
+    try {
+      await savePrize(editingPrize, adminUser.email);
+      setEditingPrize(null);
+      setIsNew(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to save prize:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to save prize.');
+    }
   };
 
   const handleDelete = async (prizeId: string) => {
-    await deletePrize(prizeId, adminUser.email);
-    setDeleteConfirmId(null);
-    onRefresh();
+    setErrorMessage('');
+    try {
+      await deletePrize(prizeId, adminUser.email);
+      setDeleteConfirmId(null);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to delete prize:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to delete prize.');
+    }
   };
 
   const handleMove = async (index: number, direction: 'up' | 'down') => {
@@ -67,8 +80,14 @@ export const PrizeManager: React.FC<PrizeManagerProps> = ({ prizes, adminUser, o
     newPrizes[index] = newPrizes[targetIndex];
     newPrizes[targetIndex] = temp;
 
-    await reorderPrizes(newPrizes, adminUser.email);
-    onRefresh();
+    setErrorMessage('');
+    try {
+      await reorderPrizes(newPrizes, adminUser.email);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to reorder prizes:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to reorder prizes.');
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +109,11 @@ export const PrizeManager: React.FC<PrizeManagerProps> = ({ prizes, adminUser, o
 
   return (
     <div className="space-y-6">
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          {errorMessage}
+        </div>
+      )}
       
       {/* Top action bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">

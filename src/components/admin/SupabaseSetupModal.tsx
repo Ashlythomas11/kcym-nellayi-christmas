@@ -43,20 +43,30 @@ export const SupabaseSetupModal: React.FC<SupabaseSetupModalProps> = ({ adminUse
     link.click();
   };
 
-  const handleImportJSON = () => {
+  const handleImportJSON = async () => {
     if (!importJsonText.trim()) return;
-    const res = importDataJSON(importJsonText, adminUser.email);
-    setStatusMsg(res.message);
-    if (res.success) {
-      setTimeout(() => onRefresh(), 500);
+    try {
+      const res = await importDataJSON(importJsonText, adminUser.email);
+      setStatusMsg(res.message);
+      if (res.success) {
+        setTimeout(() => onRefresh(), 500);
+      }
+    } catch (error) {
+      console.error('Failed to restore backup:', error);
+      setStatusMsg(error instanceof Error ? error.message : 'Unable to restore backup.');
     }
   };
 
-  const handleResetDefaults = () => {
+  const handleResetDefaults = async () => {
     if (confirm('Are you sure you want to reset all prizes, draw settings, and winners back to default church data?')) {
-      resetToDefaults(adminUser.email);
-      setStatusMsg('Reset to default parish data completed.');
-      onRefresh();
+      try {
+        await resetToDefaults(adminUser.email);
+        setStatusMsg('Reset to default parish data completed.');
+        onRefresh();
+      } catch (error) {
+        console.error('Failed to reset parish data:', error);
+        setStatusMsg(error instanceof Error ? error.message : 'Unable to reset parish data.');
+      }
     }
   };
 
@@ -81,8 +91,10 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     is_published BOOLEAN NOT NULL DEFAULT false,
     published_at TIMESTAMPTZ,
-    published_by TEXT
+    published_by TEXT,
+    prizes JSONB
 );
+ALTER TABLE public.draw_settings ADD COLUMN IF NOT EXISTS prizes JSONB;
 ALTER TABLE public.draw_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view settings" ON public.draw_settings;
 DROP POLICY IF EXISTS "Admins can edit settings" ON public.draw_settings;
@@ -91,6 +103,32 @@ CREATE POLICY "Public can view settings" ON public.draw_settings FOR SELECT USIN
 CREATE POLICY "Admins can edit settings" ON public.draw_settings FOR ALL TO authenticated
 USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
 WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
+
+CREATE TABLE IF NOT EXISTS public.winners (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    prize_id UUID,
+    prize_rank INT,
+    winning_coupon_number TEXT NOT NULL UNIQUE,
+    winner_name TEXT NOT NULL,
+    winner_location TEXT,
+    verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.winners ADD COLUMN IF NOT EXISTS prize_rank INT;
+ALTER TABLE public.winners DROP CONSTRAINT IF EXISTS winners_prize_id_fkey;
+ALTER TABLE public.winners ALTER COLUMN prize_id DROP NOT NULL;
+ALTER TABLE public.winners ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF to_regclass('public.prizes') IS NOT NULL THEN
+    UPDATE public.winners AS winner
+    SET prize_rank = prize.rank
+    FROM public.prizes AS prize
+    WHERE winner.prize_rank IS NULL AND winner.prize_id = prize.id;
+  END IF;
+END
+$$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -108,7 +146,10 @@ BEGIN
 END
 $$;
 
--- Winners policy strictly hiding unpublished numbers:
+DROP POLICY IF EXISTS "Admins have full access to winners" ON public.winners;
+CREATE POLICY "Admins have full access to winners" ON public.winners FOR ALL TO authenticated
+USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
+WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
 DROP POLICY IF EXISTS "Public can only view published winners" ON public.winners;
 CREATE POLICY "Public can only view published winners" ON public.winners FOR SELECT TO anon
 USING (EXISTS (SELECT 1 FROM public.draw_settings WHERE id = 1 AND is_published = true));`;

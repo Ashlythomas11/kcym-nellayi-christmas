@@ -23,39 +23,37 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
     contact_email TEXT DEFAULT 'kcymnellayi@gmail.com',
     church_address TEXT DEFAULT 'St. Mary''s Church, Nellayi P.O., Thrissur - 680305, Kerala',
     coupon_price TEXT DEFAULT '₹50',
+    prizes JSONB,
     CONSTRAINT single_row_check CHECK (id = 1)
 );
-
--- 2. Create Prizes Table
-CREATE TABLE IF NOT EXISTS public.prizes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rank INT NOT NULL,
-    title TEXT NOT NULL,
-    title_ml TEXT,
-    category TEXT NOT NULL CHECK (category IN ('bumper', 'major', 'appliance', 'consolation')),
-    category_label TEXT NOT NULL,
-    category_label_ml TEXT,
-    image_url TEXT NOT NULL,
-    description TEXT,
-    description_ml TEXT,
-    sponsor TEXT,
-    sponsor_ml TEXT,
-    order_index INT NOT NULL DEFAULT 0,
-    badge TEXT,
-    badge_ml TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+ALTER TABLE public.draw_settings ADD COLUMN IF NOT EXISTS prizes JSONB;
 
 -- 3. Create Winners Table (Prize-to-Winner Association)
 CREATE TABLE IF NOT EXISTS public.winners (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    prize_id UUID NOT NULL REFERENCES public.prizes(id) ON DELETE CASCADE,
+    prize_id UUID,
+    prize_rank INT,
     winning_coupon_number TEXT NOT NULL UNIQUE,
     winner_name TEXT NOT NULL,
     winner_location TEXT,
     verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE public.winners ADD COLUMN IF NOT EXISTS prize_rank INT;
+ALTER TABLE public.winners DROP CONSTRAINT IF EXISTS winners_prize_id_fkey;
+ALTER TABLE public.winners ALTER COLUMN prize_id DROP NOT NULL;
+
+DO $$
+BEGIN
+    IF to_regclass('public.prizes') IS NOT NULL THEN
+        UPDATE public.winners AS winner
+        SET prize_rank = prize.rank
+        FROM public.prizes AS prize
+        WHERE winner.prize_rank IS NULL
+          AND winner.prize_id = prize.id;
+    END IF;
+END
+$$;
 
 -- 4. Create Administrator Audit Logs Table
 CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
@@ -83,7 +81,6 @@ GRANT SELECT ON TABLE public.admin_usernames TO service_role;
 -- =========================================================================
 
 ALTER TABLE public.draw_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.prizes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.winners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
 
@@ -125,22 +122,6 @@ BEGIN
     END IF;
 END
 $$;
-
--- Prizes Policies:
--- Anyone can view the gift gallery
-DROP POLICY IF EXISTS "Public can view prizes" ON public.prizes;
-DROP POLICY IF EXISTS "Admins can manage prizes" ON public.prizes;
-CREATE POLICY "Public can view prizes"
-    ON public.prizes FOR SELECT
-    TO anon, authenticated
-    USING (true);
-
--- Only admins can manage prizes
-CREATE POLICY "Admins can manage prizes"
-    ON public.prizes FOR ALL
-    TO authenticated
-    USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
-    WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
 
 -- Winners Policies:
 -- Public can ONLY view winners if the draw has been officially published!

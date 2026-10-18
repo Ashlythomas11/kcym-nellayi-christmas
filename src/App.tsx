@@ -14,6 +14,7 @@ import { INITIAL_DRAW_SETTINGS } from './constants/initialData';
 import { Language, Prize, Winner, DrawSettings, AuditLog, AdminUser, CouponSearchResult } from './types';
 import {
   fetchDrawSettingsFromSupabase,
+  fetchPrizesFromSupabase,
   fetchWinnersFromSupabase,
   getDrawSettings,
   mapDrawSettingsRow,
@@ -35,6 +36,7 @@ export function App() {
   const [drawSettings, setDrawSettings] = useState<DrawSettings>(INITIAL_DRAW_SETTINGS);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const hasLoadedCloudSettings = useRef(false);
+  const hasLoadedCloudPrizes = useRef(false);
   const hasLoadedCloudWinners = useRef(false);
   const adminUserRef = useRef(adminUser);
   const [prizes, setPrizes] = useState<Prize[]>(getPrizes);
@@ -48,7 +50,18 @@ export function App() {
   const reloadData = useCallback(() => {
     const s = getDrawSettings();
     if (!hasLoadedCloudSettings.current) setDrawSettings(s);
-    setPrizes(getPrizes());
+    if (!hasLoadedCloudPrizes.current) {
+      setPrizes(getPrizes());
+    } else {
+      void fetchPrizesFromSupabase()
+        .then((cloudPrizes) => {
+          if (cloudPrizes) {
+            hasLoadedCloudPrizes.current = true;
+            setPrizes(cloudPrizes);
+          }
+        })
+        .catch((error) => console.error('Unable to refresh the prize catalog:', error));
+    }
     if (hasLoadedCloudSettings.current && (s.isPublished || adminUser)) {
       void fetchWinnersFromSupabase()
         .then((cloudWinners) => {
@@ -92,6 +105,13 @@ export function App() {
               hasLoadedCloudSettings.current = true;
               const settings = mapDrawSettingsRow(payload.new);
               setDrawSettings(settings);
+              void fetchPrizesFromSupabase()
+                .then((cloudPrizes) => {
+                  if (!isActive || !cloudPrizes) return;
+                  hasLoadedCloudPrizes.current = true;
+                  setPrizes(cloudPrizes);
+                })
+                .catch((error) => console.error('Unable to refresh the prize catalog:', error));
               if (settings.isPublished || adminUserRef.current) {
                 void fetchWinnersFromSupabase()
                   .then((cloudWinners) => {
@@ -131,6 +151,11 @@ export function App() {
 
         hasLoadedCloudSettings.current = true;
         setDrawSettings(liveSettings);
+        const cloudPrizes = await fetchPrizesFromSupabase();
+        if (cloudPrizes && isActive) {
+          hasLoadedCloudPrizes.current = true;
+          setPrizes(cloudPrizes);
+        }
         if (liveSettings.isPublished) {
           try {
             const cloudWinners = await fetchWinnersFromSupabase();
