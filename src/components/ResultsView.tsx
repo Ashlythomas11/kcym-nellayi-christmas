@@ -3,7 +3,7 @@ import { Award, Search, Sparkles, AlertCircle, CheckCircle2, Calendar, Printer, 
 import { Prize, Winner, DrawSettings, Language, CouponSearchResult } from '../types';
 import { translations } from '../constants/translations';
 import { formatToIST, formatToISTMalayalam } from '../utils/timezone';
-import { searchCoupon } from '../services/storage';
+import { checkCouponNumber } from '../services/storage';
 import { triggerWinnerCelebration } from '../utils/confetti';
 import { CouponSearchModal } from './CouponSearchModal';
 import { NoticeBoardPrint } from './NoticeBoardPrint';
@@ -27,19 +27,29 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [filterText, setFilterText] = useState('');
   const [activeSearchResult, setActiveSearchResult] = useState<CouponSearchResult | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const revealRef = useScrollReveal<HTMLElement>();
 
   const t = translations[language];
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
 
-    const result = searchCoupon(searchInput.trim(), false);
-    setActiveSearchResult(result);
-
-    if (result.isWinner) {
-      triggerWinnerCelebration();
+    setSearchError('');
+    setIsSearching(true);
+    try {
+      const result = await checkCouponNumber(searchInput.trim());
+      setActiveSearchResult(result);
+      if (result.isWinner) {
+        triggerWinnerCelebration();
+      }
+    } catch (error) {
+      console.error('Unable to check coupon number:', error);
+      setSearchError(error instanceof Error ? error.message : 'Unable to check this coupon right now.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -177,11 +187,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 </div>
                 <button
                   type="submit"
-                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-christmas-gold to-christmas-lightGold text-christmas-darkGreen font-bold text-base hover:brightness-105 active:scale-95 transition-all shadow-md flex-shrink-0"
+                  disabled={isSearching}
+                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-christmas-gold to-christmas-lightGold text-christmas-darkGreen font-bold text-base hover:brightness-105 active:scale-95 transition-all shadow-md flex-shrink-0 disabled:cursor-wait disabled:opacity-60"
                 >
-                  {t.results.searchBtn}
+                  {isSearching ? (language === 'en' ? 'Checking...' : 'പരിശോധിക്കുന്നു...') : t.results.searchBtn}
                 </button>
               </form>
+              {searchError && (
+                <p role="alert" className="mt-3 text-sm font-semibold text-red-200">
+                  {searchError}
+                </p>
+              )}
             </div>
 
             {/* Results Filter & Table Section */}

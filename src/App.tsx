@@ -21,7 +21,7 @@ import {
   getWinners,
   getAuditLogs,
   DATA_CHANGE_EVENT,
-  searchCoupon,
+  checkCouponNumber,
 } from './services/storage';
 import { triggerWinnerCelebration } from './utils/confetti';
 import { getSupabaseClient } from './services/supabaseClient';
@@ -166,16 +166,19 @@ export function App() {
 
   // Handle URL parameters (QR code deep linking)
   useEffect(() => {
+    let isActive = true;
     const params = new URLSearchParams(window.location.search);
     
     // Check for direct coupon parameter: ?coupon=7842
     const couponParam = params.get('coupon') || window.location.hash.replace('#coupon=', '');
     if (couponParam) {
-      const result = searchCoupon(couponParam, Boolean(adminUser));
-      setQrSearchResult(result);
-      if (result.isWinner) {
-        triggerWinnerCelebration();
-      }
+      void checkCouponNumber(couponParam, Boolean(adminUser))
+        .then((result) => {
+          if (!isActive) return;
+          setQrSearchResult(result);
+          if (result.isWinner) triggerWinnerCelebration();
+        })
+        .catch((error) => console.error('Unable to check coupon from URL:', error));
     }
 
     // Check for admin route query: ?admin=true or #admin
@@ -183,6 +186,9 @@ export function App() {
       if (adminUser) setCurrentView('admin-dashboard');
       else setCurrentView('admin-login');
     }
+    return () => {
+      isActive = false;
+    };
   }, [adminUser]);
 
   // Handle section scrolling

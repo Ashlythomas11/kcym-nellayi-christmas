@@ -849,23 +849,27 @@ export async function deleteWinner(winnerId: string, adminEmail: string): Promis
 }
 
 /**
- * Public search for a winning coupon number.
- * Only returns a match if the draw has been officially published!
+ * Checks a coupon against winner assignments stored on draw_settings row 1.
+ * Public checks use the sanitized published-results view.
  */
-export function searchCoupon(query: string, isAdmin = false): CouponSearchResult {
+export async function checkCouponNumber(query: string, isAdmin = false): Promise<CouponSearchResult> {
   const cleanQuery = query.trim().toUpperCase().replace(/\s+/g, '');
   if (!cleanQuery) {
     return { searchedNumber: query, isWinner: false };
   }
 
-  const settings = getDrawSettings();
+  const settings = await fetchDrawSettingsFromSupabase() ?? getDrawSettings();
   if (!settings.isPublished && !isAdmin) {
     // Before publication, public cannot search or discover winners
     return { searchedNumber: query, isWinner: false };
   }
 
-  const winners = getWinners(isAdmin);
-  const prizes = getPrizes();
+  const [cloudWinners, cloudPrizes] = await Promise.all([
+    fetchWinnersFromSupabase(isAdmin),
+    fetchPrizesFromSupabase(),
+  ]);
+  const winners = cloudWinners ?? getWinners(isAdmin);
+  const prizes = cloudPrizes ?? getPrizes();
 
   const matchedWinner = winners.find(
     (w) => w.winningCouponNumber.trim().toUpperCase().replace(/\s+/g, '') === cleanQuery
