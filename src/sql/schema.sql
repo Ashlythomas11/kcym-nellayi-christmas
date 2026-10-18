@@ -24,12 +24,10 @@ CREATE TABLE IF NOT EXISTS public.draw_settings (
     church_address TEXT DEFAULT 'St. Mary''s Church, Nellayi P.O., Thrissur - 680305, Kerala',
     coupon_price TEXT DEFAULT '₹50',
     prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
-    winners JSONB NOT NULL DEFAULT '[]'::jsonb,
     CONSTRAINT single_row_check CHECK (id = 1)
 );
 ALTER TABLE public.draw_settings
-    ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS winners JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- Migrate existing winner rows once when the legacy tables are present.
 DO $$
@@ -63,20 +61,28 @@ BEGIN
     IF to_regclass('public.winners') IS NOT NULL AND to_regclass('public.prizes') IS NOT NULL THEN
         EXECUTE $migration$
             UPDATE public.draw_settings AS settings
-            SET winners = (
-                SELECT COALESCE(jsonb_agg(jsonb_build_object(
-                    'id', winner.id::text,
-                    'prizeId', 'prize-' || prize.rank,
-                    'winningCouponNumber', winner.winning_coupon_number,
-                    'winnerName', winner.winner_name,
-                    'winnerLocation', winner.winner_location,
-                    'verifiedAt', winner.verified_at,
-                    'createdAt', winner.created_at
-                ) ORDER BY prize.rank), '[]'::jsonb)
-                FROM public.winners AS winner
-                JOIN public.prizes AS prize ON prize.id = winner.prize_id
+            SET prizes = (
+                SELECT COALESCE(jsonb_agg(
+                    CASE WHEN winner.id IS NULL THEN prize_row.value
+                    ELSE jsonb_set(prize_row.value, '{winner}', jsonb_build_object(
+                        'id', winner.id::text,
+                        'prizeId', 'prize-' || prize.rank,
+                        'winningCouponNumber', winner.winning_coupon_number,
+                        'winnerName', winner.winner_name,
+                        'winnerLocation', winner.winner_location,
+                        'verifiedAt', winner.verified_at,
+                        'createdAt', winner.created_at
+                    ), true) END
+                    ORDER BY prize_row.ordinality
+                ), '[]'::jsonb)
+                FROM jsonb_array_elements(settings.prizes) WITH ORDINALITY AS prize_row(value, ordinality)
+                LEFT JOIN (
+                    SELECT winner.*, prize.rank, 'prize-' || prize.rank AS prize_id
+                    FROM public.winners AS winner
+                    JOIN public.prizes AS prize ON prize.id = winner.prize_id
+                ) AS winner ON prize_row.value ->> 'id' = winner.prize_id
             )
-            WHERE settings.id = 1 AND settings.winners = '[]'::jsonb
+            WHERE settings.id = 1
         $migration$;
     END IF;
 END
@@ -126,23 +132,25 @@ CREATE POLICY "Admins can update draw settings"
     USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'))
     WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('superadmin', 'organizer'));
 
--- Public roles can read settings and prizes, but not the unpublished winners JSON.
+-- Public roles can read settings but not the private prize assignments.
 REVOKE SELECT ON TABLE public.draw_settings FROM PUBLIC, anon;
 GRANT SELECT (
     id, draw_date_ist, timezone, is_published, published_at, published_by,
     draw_venue, draw_venue_ml, hero_headline, hero_headline_ml,
     hero_subtitle, hero_subtitle_ml, announcement_text, announcement_text_ml,
     contact_phone, contact_email, church_address,
-    coupon_price, prizes
+    coupon_price
 ) ON TABLE public.draw_settings TO anon;
-REVOKE SELECT (winners) ON TABLE public.draw_settings FROM PUBLIC, anon;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.draw_settings TO authenticated;
 
 CREATE TABLE IF NOT EXISTS public.draw_settings_publication (
     id INT PRIMARY KEY,
     is_published BOOLEAN NOT NULL DEFAULT false,
+    prizes JSONB NOT NULL DEFAULT '[]'::jsonb,
     winners JSONB NOT NULL DEFAULT '[]'::jsonb
 );
+ALTER TABLE public.draw_settings_publication
+    ADD COLUMN IF NOT EXISTS prizes JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE public.draw_settings_publication ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view published draw state" ON public.draw_settings_publication;
 CREATE POLICY "Public can view published draw state"
@@ -157,15 +165,22 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    public_prizes JSONB;
+    public_winners JSONB;
 BEGIN
-    INSERT INTO public.draw_settings_publication (id, is_published, winners)
-    VALUES (
-        NEW.id,
-        NEW.is_published,
-        CASE WHEN NEW.is_published THEN NEW.winners ELSE '[]'::jsonb END
-    )
+    SELECT COALESCE(jsonb_agg(prize.value - 'winner' ORDER BY prize.ordinality), '[]'::jsonb),
+           COALESCE(jsonb_agg(prize.value -> 'winner' ORDER BY prize.ordinality)
+               FILTER (WHERE jsonb_typeof(prize.value -> 'winner') = 'object'), '[]'::jsonb)
+    INTO public_prizes, public_winners
+    FROM jsonb_array_elements(NEW.prizes) WITH ORDINALITY AS prize(value, ordinality);
+
+    INSERT INTO public.draw_settings_publication (id, is_published, prizes, winners)
+    VALUES (NEW.id, NEW.is_published, public_prizes,
+        CASE WHEN NEW.is_published THEN public_winners ELSE '[]'::jsonb END)
     ON CONFLICT (id) DO UPDATE SET
         is_published = EXCLUDED.is_published,
+        prizes = EXCLUDED.prizes,
         winners = EXCLUDED.winners;
     RETURN NEW;
 END
@@ -177,16 +192,27 @@ CREATE TRIGGER sync_public_draw_settings
     AFTER INSERT OR UPDATE ON public.draw_settings
     FOR EACH ROW EXECUTE FUNCTION public.sync_public_draw_settings();
 
-INSERT INTO public.draw_settings_publication (id, is_published, winners)
-SELECT id, is_published, CASE WHEN is_published THEN winners ELSE '[]'::jsonb END
-FROM public.draw_settings
-WHERE id = 1
+INSERT INTO public.draw_settings_publication (id, is_published, prizes, winners)
+SELECT settings.id,
+       settings.is_published,
+       COALESCE((
+           SELECT jsonb_agg(prize.value - 'winner' ORDER BY prize.ordinality)
+           FROM jsonb_array_elements(settings.prizes) WITH ORDINALITY AS prize(value, ordinality)
+       ), '[]'::jsonb),
+       CASE WHEN settings.is_published THEN COALESCE((
+           SELECT jsonb_agg(prize.value -> 'winner' ORDER BY prize.ordinality)
+               FILTER (WHERE jsonb_typeof(prize.value -> 'winner') = 'object')
+           FROM jsonb_array_elements(settings.prizes) WITH ORDINALITY AS prize(value, ordinality)
+       ), '[]'::jsonb) ELSE '[]'::jsonb END
+FROM public.draw_settings AS settings
+WHERE settings.id = 1
 ON CONFLICT (id) DO UPDATE SET
     is_published = EXCLUDED.is_published,
+    prizes = EXCLUDED.prizes,
     winners = EXCLUDED.winners;
 
 CREATE OR REPLACE VIEW public.published_draw_settings AS
-SELECT id, is_published, winners
+SELECT id, is_published, winners, prizes
 FROM public.draw_settings_publication
 WHERE id = 1;
 GRANT SELECT ON public.published_draw_settings TO anon, authenticated;

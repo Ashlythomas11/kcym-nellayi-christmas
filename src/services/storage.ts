@@ -148,6 +148,16 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
     ...settings,
   };
 
+  const { data: existingRow, error: existingRowError } = await supabase
+    .from('draw_settings')
+    .select('id, prizes')
+    .eq('id', '1')
+    .maybeSingle();
+  if (existingRowError) {
+    throw new Error(`Unable to preserve the current prize catalog while saving settings: ${existingRowError.message}`);
+  }
+  const winners = getWinnersFromPrizeRows(existingRow?.prizes);
+
   const { data, error } = await supabase
     .from('draw_settings')
     .upsert({
@@ -169,9 +179,9 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
       contact_email: updated.contactEmail,
       church_address: updated.churchAddress,
       coupon_price: updated.couponPrice,
-      prizes: getPrizes(),
+      prizes: withWinnersInPrizes(parsePrizes(existingRow?.prizes ?? getPrizes()), winners),
     }, { onConflict: 'id' })
-    .select()
+    .select('id, draw_date_ist, timezone, is_published, published_at, published_by, draw_venue, draw_venue_ml, hero_headline, hero_headline_ml, hero_subtitle, hero_subtitle_ml, announcement_text, announcement_text_ml, contact_phone, contact_email, church_address, coupon_price')
     .single();
   if (error) {
     throw new Error(`Cloud save failed. Draw settings were not saved locally: ${error.message}`);
@@ -206,7 +216,7 @@ export async function publishResults(adminEmail: string): Promise<DrawSettings> 
 
   const { data: currentRow, error: rowError } = await supabase
     .from('draw_settings')
-    .select('*')
+    .select('id, draw_date_ist, timezone, is_published, published_at, published_by, draw_venue, draw_venue_ml, hero_headline, hero_headline_ml, hero_subtitle, hero_subtitle_ml, announcement_text, announcement_text_ml, contact_phone, contact_email, church_address, coupon_price, prizes')
     .eq('id', '1')
     .maybeSingle();
   if (rowError) {
@@ -233,12 +243,9 @@ export async function publishResults(adminEmail: string): Promise<DrawSettings> 
     church_address: current.churchAddress,
     coupon_price: current.couponPrice,
     prizes: getPrizes(),
-    winners: getStoredWinners(),
   };
 
-  const storedWinners = parseCloudWinners(settingsData.winners);
-  const localWinners = getStoredWinners();
-  const winnersToPublish = storedWinners.length > 0 ? storedWinners : localWinners;
+  const winnersToPublish = getWinnersFromPrizeRows(settingsData.prizes);
   const updated: DrawSettings = {
     ...current,
     isPublished: true,
@@ -247,14 +254,29 @@ export async function publishResults(adminEmail: string): Promise<DrawSettings> 
   };
 
   const { data, error } = await supabase.from('draw_settings').upsert({
-    ...settingsData,
     id: '1',
-    prizes: settingsData.prizes ?? getPrizes(),
-    winners: winnersToPublish,
+    draw_date_ist: settingsData.draw_date_ist,
+    timezone: settingsData.timezone,
     is_published: true,
     published_at: updated.publishedAt,
     published_by: adminEmail,
-  }, { onConflict: 'id' }).select('id, winners').maybeSingle();
+    draw_venue: settingsData.draw_venue,
+    draw_venue_ml: settingsData.draw_venue_ml,
+    hero_headline: settingsData.hero_headline,
+    hero_headline_ml: settingsData.hero_headline_ml,
+    hero_subtitle: settingsData.hero_subtitle,
+    hero_subtitle_ml: settingsData.hero_subtitle_ml,
+    announcement_text: settingsData.announcement_text,
+    announcement_text_ml: settingsData.announcement_text_ml,
+    contact_phone: settingsData.contact_phone,
+    contact_email: settingsData.contact_email,
+    church_address: settingsData.church_address,
+    coupon_price: settingsData.coupon_price,
+    prizes: withWinnersInPrizes(
+      parsePrizes(settingsData.prizes ?? getPrizes()),
+      winnersToPublish,
+    ),
+  }, { onConflict: 'id' }).select('id, prizes').maybeSingle();
   if (error) {
     throw new Error(`Unable to publish results to draw settings row 1: ${error.message}`);
   }
@@ -262,7 +284,7 @@ export async function publishResults(adminEmail: string): Promise<DrawSettings> 
     throw new Error('Supabase did not confirm publishing draw settings row 1.');
   }
 
-  localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(parseCloudWinners(data.winners)));
+  localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(winnersToPublish));
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
   addAuditLog(
     'PUBLISH_RESULTS',
@@ -435,11 +457,36 @@ function isPrize(value: unknown): value is Prize {
     && typeof prize.orderIndex === 'number';
 }
 
+function getWinnersFromPrizeRows(value: unknown): Winner[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null || !('winner' in entry) || entry.winner == null) return [];
+    try {
+      return parseCloudWinners([entry.winner]);
+    } catch (error) {
+      console.warn('Skipping invalid winner assignment embedded in draw_settings.prizes:', error);
+      return [];
+    }
+  });
+}
+
+function withWinnersInPrizes(prizes: Prize[], winners: Winner[]): Array<Prize & { winner?: Winner }> {
+  return prizes.map((prize) => {
+    const winner = winners.find((entry) => entry.prizeId === prize.id);
+    return winner ? { ...prize, winner } : prize;
+  });
+}
+
 function parsePrizes(value: unknown): Prize[] {
   if (!Array.isArray(value) || !value.every(isPrize)) {
     throw new Error('Supabase returned invalid draw_settings.prizes data.');
   }
-  return [...value].sort((a, b) => a.orderIndex - b.orderIndex);
+  return value
+    .map((entry) => {
+      const { winner: _winner, ...prize } = entry as Prize & { winner?: Winner };
+      return prize;
+    })
+    .sort((a, b) => a.orderIndex - b.orderIndex);
 }
 
 function cachePrizes(prizes: Prize[], context: string): void {
@@ -450,15 +497,13 @@ function cachePrizes(prizes: Prize[], context: string): void {
   }
 }
 
-export async function fetchPrizesFromSupabase(): Promise<Prize[] | null> {
+export async function fetchPrizesFromSupabase(isAdmin = false): Promise<Prize[] | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
-  const { data, error } = await supabase
-    .from('draw_settings')
-    .select('id, prizes')
-    .eq('id', '1')
-    .maybeSingle();
+  const { data, error } = isAdmin
+    ? await supabase.from('draw_settings').select('id, prizes').eq('id', '1').maybeSingle()
+    : await supabase.from('published_draw_settings').select('id, prizes').eq('id', '1').maybeSingle();
   if (error) {
     throw new Error(`Unable to fetch prizes from draw_settings row 1: ${error.message}`);
   }
@@ -466,19 +511,37 @@ export async function fetchPrizesFromSupabase(): Promise<Prize[] | null> {
   if (data.prizes === null) return null;
 
   const prizes = parsePrizes(data.prizes);
+  try {
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(getWinnersFromPrizeRows(data.prizes)));
+  } catch (error) {
+    console.warn('Prizes were loaded from Supabase, but the local winner cache could not be updated:', error);
+  }
   cachePrizes(prizes, 'Prizes were loaded from Supabase');
   return prizes;
 }
 
-async function savePrizesToSupabase(prizes: Prize[]): Promise<Prize[]> {
+async function savePrizesToSupabase(prizes: Prize[], winners?: Winner[]): Promise<Prize[]> {
   const supabase = getSupabaseClient();
   if (!supabase) {
     throw new Error('Supabase is not connected. Prize changes were not saved.');
   }
 
+  let winnerAssignments = winners;
+  if (!winnerAssignments) {
+    const { data: row, error: readError } = await supabase
+      .from('draw_settings')
+      .select('id, prizes')
+      .eq('id', '1')
+      .maybeSingle();
+    if (readError) {
+      throw new Error(`Unable to preserve winner assignments from draw settings row 1: ${readError.message}`);
+    }
+    winnerAssignments = getWinnersFromPrizeRows(row?.prizes);
+  }
+
   const { data, error } = await supabase
     .from('draw_settings')
-    .upsert({ id: '1', prizes }, { onConflict: 'id' })
+    .upsert({ id: '1', prizes: withWinnersInPrizes(prizes, winnerAssignments) }, { onConflict: 'id' })
     .select('id, prizes')
     .maybeSingle();
   if (error) {
@@ -528,7 +591,7 @@ export async function deletePrize(prizeId: string, adminEmail: string): Promise<
 
   const { data: currentRow, error: readError } = await supabase
     .from('draw_settings')
-    .select('id, winners')
+    .select('id, prizes')
     .eq('id', '1')
     .maybeSingle();
   if (readError) {
@@ -538,15 +601,15 @@ export async function deletePrize(prizeId: string, adminEmail: string): Promise<
     throw new Error('Draw settings row 1 does not exist. The prize was not deleted.');
   }
 
-  const winners = parseCloudWinners(currentRow.winners);
+  const winners = getWinnersFromPrizeRows(currentRow.prizes);
   const updatedWinners = target
     ? winners.filter((winner) => winner.prizeId !== prizeId)
     : winners;
   const { data, error } = await supabase
     .from('draw_settings')
-    .update({ prizes: updatedList, winners: updatedWinners })
+    .update({ prizes: withWinnersInPrizes(updatedList, updatedWinners) })
     .eq('id', '1')
-    .select('id, prizes, winners')
+    .select('id, prizes')
     .maybeSingle();
   if (error) {
     throw new Error(`Unable to delete prize from draw settings row 1: ${error.message}`);
@@ -557,7 +620,7 @@ export async function deletePrize(prizeId: string, adminEmail: string): Promise<
 
   const savedPrizes = parsePrizes(data.prizes);
   try {
-    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(parseCloudWinners(data.winners)));
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(getWinnersFromPrizeRows(data.prizes)));
   } catch (error) {
     console.warn('Prize was deleted from Supabase, but the local winner cache could not be updated:', error);
   }
@@ -628,7 +691,7 @@ function getStoredWinners(): Winner[] {
 function parseCloudWinners(value: unknown): Winner[] {
   if (value === null || value === undefined) return [];
   if (!Array.isArray(value)) {
-    throw new Error('Supabase returned invalid draw_settings.winners data.');
+    throw new Error('Supabase returned invalid winner data in draw_settings.prizes or published results.');
   }
   return value.map((row: unknown) => {
     if (
@@ -640,7 +703,7 @@ function parseCloudWinners(value: unknown): Winner[] {
       || !('winnerName' in row) || typeof row.winnerName !== 'string'
       || !('createdAt' in row) || typeof row.createdAt !== 'string'
     ) {
-      throw new Error('Supabase returned an invalid winner entry in draw_settings.winners.');
+      throw new Error('Supabase returned an invalid winner entry in draw_settings.prizes or published results.');
     }
     return row as Winner;
   });
@@ -653,31 +716,28 @@ export async function fetchWinnersFromSupabase(isAdmin = false): Promise<Winner[
   const { data, error } = isAdmin
     ? await supabase
       .from('draw_settings')
-      .select('id, winners')
+      .select('id, prizes')
       .eq('id', '1')
       .maybeSingle()
     : await supabase
       .from('published_draw_settings')
-      .select('id, winners')
+      .select('id, prizes, winners')
       .eq('id', '1')
       .maybeSingle();
   if (error) {
     throw new Error(`Unable to load winning coupons from Supabase: ${error.message}`);
   }
   if (!data) return [];
-  const cloudWinners = parseCloudWinners(data.winners);
-  const cachedWinners = getStoredWinners();
-  const winners = isAdmin && cloudWinners.length === 0 && cachedWinners.length > 0
-    ? cachedWinners
-    : cloudWinners;
+  const cloudWinners = isAdmin
+    ? getWinnersFromPrizeRows(data.prizes)
+    : parseCloudWinners('winners' in data ? data.winners : null);
 
   try {
-    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(winners));
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(cloudWinners));
   } catch (error) {
     console.warn('Winning coupons were loaded from Supabase, but the local cache could not be updated:', error);
   }
-
-  return winners;
+  return cloudWinners;
 }
 
 async function saveWinnerToSupabase(
@@ -686,13 +746,15 @@ async function saveWinnerToSupabase(
 ): Promise<Winner> {
   const { data: row, error: readError } = await supabase
     .from('draw_settings')
-    .select('id, winners')
+    .select('id, prizes')
     .eq('id', '1')
     .maybeSingle();
   if (readError) {
     throw new Error(`Unable to load winner assignments from draw settings row 1: ${readError.message}`);
   }
-  const winners = parseCloudWinners(row?.winners);
+  const prizeRows = row?.prizes ?? getPrizes();
+  const prizes = parsePrizes(prizeRows);
+  const winners = getWinnersFromPrizeRows(prizeRows);
   const normalizedCoupon = winner.winningCouponNumber.trim().toUpperCase();
   const duplicate = winners.find((entry) =>
     entry.winningCouponNumber.trim().toUpperCase() === normalizedCoupon
@@ -716,20 +778,21 @@ async function saveWinnerToSupabase(
   if (existingIndex >= 0) updatedWinners[existingIndex] = savedWinner;
   else updatedWinners.push(savedWinner);
 
-  const write = row
-    ? supabase.from('draw_settings').update({ winners: updatedWinners }).eq('id', '1')
-    : supabase.from('draw_settings').upsert(
-      { id: '1', prizes: getPrizes(), winners: updatedWinners },
-      { onConflict: 'id' },
-    );
-  const { data, error } = await write.select('id, winners').maybeSingle();
+  const { data, error } = await supabase
+    .from('draw_settings')
+    .upsert({
+      id: '1',
+      prizes: withWinnersInPrizes(prizes, updatedWinners),
+    }, { onConflict: 'id' })
+    .select('id, prizes')
+    .maybeSingle();
   if (error) {
     throw new Error(`Unable to save winner to draw settings row 1: ${error.message}`);
   }
   if (!data || Number(data.id) !== 1) {
     throw new Error('Supabase did not confirm saving the winner to draw settings row 1.');
   }
-  return parseCloudWinners(data.winners).find((entry) => entry.prizeId === winner.prizeId) ?? savedWinner;
+  return getWinnersFromPrizeRows(data.prizes).find((entry) => entry.prizeId === winner.prizeId) ?? savedWinner;
 }
 
 /**
@@ -813,7 +876,7 @@ export async function deleteWinner(winnerId: string, adminEmail: string): Promis
 
   const { data: row, error: readError } = await supabase
     .from('draw_settings')
-    .select('id, winners')
+    .select('id, prizes')
     .eq('id', '1')
     .maybeSingle();
   if (readError) {
@@ -822,15 +885,15 @@ export async function deleteWinner(winnerId: string, adminEmail: string): Promis
   if (!row) {
     throw new Error('Draw settings row 1 does not exist. No winner was deleted.');
   }
-  const winners = parseCloudWinners(row.winners);
+  const winners = getWinnersFromPrizeRows(row.prizes);
   const target = winners.find((w) => w.id === winnerId);
   const updated = winners.filter((w) => w.id !== winnerId);
 
   const { data, error } = await supabase
     .from('draw_settings')
-    .update({ winners: updated })
+    .update({ prizes: withWinnersInPrizes(parsePrizes(row.prizes), updated) })
     .eq('id', '1')
-    .select('id')
+    .select('id, prizes')
     .maybeSingle();
   if (error) {
     throw new Error(`Unable to delete winner from draw settings row 1: ${error.message}`);
@@ -839,7 +902,7 @@ export async function deleteWinner(winnerId: string, adminEmail: string): Promis
     throw new Error('Supabase did not confirm deleting the winner from draw settings row 1.');
   }
 
-  localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(updated));
+  localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(getWinnersFromPrizeRows(data.prizes)));
   addAuditLog(
     'WINNER_DELETE',
     `Removed winner entry: Coupon #${target?.winningCouponNumber || winnerId}`,
@@ -949,10 +1012,13 @@ export async function importDataJSON(jsonString: string, adminEmail: string): Pr
     }
 
     const importedPrizes = parsePrizes(data.prizes);
-    const savedPrizes = await savePrizesToSupabase(importedPrizes);
+    const importedWinners = Array.isArray(data.winners)
+      ? parseCloudWinners(data.winners)
+      : getWinnersFromPrizeRows(data.prizes);
+    const savedPrizes = await savePrizesToSupabase(importedPrizes, importedWinners);
     if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
     localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(savedPrizes));
-    if (data.winners) localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(data.winners));
+    localStorage.setItem(STORAGE_KEYS.WINNERS, JSON.stringify(importedWinners));
     
     addAuditLog('DATA_RESTORE', 'Restored data from external JSON backup', adminEmail);
     notifyDataChange();
@@ -964,23 +1030,7 @@ export async function importDataJSON(jsonString: string, adminEmail: string): Pr
 }
 
 export async function resetToDefaults(adminEmail: string): Promise<void> {
-  const savedPrizes = await savePrizesToSupabase(INITIAL_PRIZES);
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    throw new Error('Supabase is not connected. Defaults were not fully reset.');
-  }
-  const { data, error } = await supabase
-    .from('draw_settings')
-    .update({ winners: [] })
-    .eq('id', '1')
-    .select('id')
-    .maybeSingle();
-  if (error) {
-    throw new Error(`Prizes were reset, but winner assignments could not be cleared: ${error.message}`);
-  }
-  if (!data || Number(data.id) !== 1) {
-    throw new Error('Prizes were reset, but Supabase did not confirm clearing winner assignments.');
-  }
+  const savedPrizes = await savePrizesToSupabase(INITIAL_PRIZES, []);
 
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(INITIAL_DRAW_SETTINGS));
   localStorage.setItem(STORAGE_KEYS.PRIZES, JSON.stringify(savedPrizes));
