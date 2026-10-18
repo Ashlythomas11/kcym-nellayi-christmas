@@ -89,6 +89,44 @@ export function App() {
     let isActive = true;
     let channel: ReturnType<NonNullable<ReturnType<typeof getSupabaseClient>>['channel']> | undefined;
 
+    const refreshPublishedData = async () => {
+      try {
+        const [settings, cloudPrizes, cloudWinners] = await Promise.all([
+          fetchDrawSettingsFromSupabase(),
+          fetchPrizesFromSupabase(),
+          fetchWinnersFromSupabase(Boolean(adminUserRef.current)),
+        ]);
+        if (!isActive) return;
+
+        if (settings) {
+          hasLoadedCloudSettings.current = true;
+          setDrawSettings(settings);
+        }
+        if (cloudPrizes) {
+          hasLoadedCloudPrizes.current = true;
+          setPrizes(cloudPrizes);
+        }
+        if (cloudWinners) {
+          hasLoadedCloudWinners.current = true;
+          setWinners(cloudWinners);
+        } else if (settings && !settings.isPublished && !adminUserRef.current) {
+          hasLoadedCloudWinners.current = false;
+          setWinners([]);
+        }
+      } catch (error) {
+        console.error('Unable to refresh published draw data:', error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshPublishedData();
+      }
+    };
+
+    window.addEventListener('focus', refreshPublishedData);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const loadDrawSettings = async () => {
       try {
         const supabase = getSupabaseClient();
@@ -99,29 +137,7 @@ export function App() {
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'draw_settings_publication', filter: 'id=eq.1' },
-            () => {
-              void Promise.all([
-                fetchDrawSettingsFromSupabase(),
-                fetchPrizesFromSupabase(),
-                fetchWinnersFromSupabase(Boolean(adminUserRef.current)),
-              ])
-                .then(([settings, cloudPrizes, cloudWinners]) => {
-                  if (!isActive) return;
-                  if (settings) {
-                    hasLoadedCloudSettings.current = true;
-                    setDrawSettings(settings);
-                  }
-                  if (cloudPrizes) {
-                    hasLoadedCloudPrizes.current = true;
-                    setPrizes(cloudPrizes);
-                  }
-                  if (cloudWinners) {
-                    hasLoadedCloudWinners.current = true;
-                    setWinners(cloudWinners);
-                  }
-                })
-                .catch((error) => console.error('Unable to refresh published draw data:', error));
-            }
+            refreshPublishedData
           )
           .subscribe((status, error) => {
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -160,6 +176,8 @@ export function App() {
     void loadDrawSettings();
     return () => {
       isActive = false;
+      window.removeEventListener('focus', refreshPublishedData);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (channel) void getSupabaseClient()?.removeChannel(channel);
     };
   }, []);
