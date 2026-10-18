@@ -462,11 +462,18 @@ function normalizePrizeRows(value: unknown): unknown[] {
   if (typeof parsed === 'string') {
     try {
       parsed = JSON.parse(parsed);
-    } catch {
+    } catch (error) {
+      console.warn('Unable to parse draw_settings.prizes JSON; using initial prizes:', error);
       parsed = [];
     }
   }
-  return Array.isArray(parsed) ? parsed : [];
+  if (!Array.isArray(parsed)) {
+    if (parsed !== null && parsed !== undefined) {
+      console.warn('draw_settings.prizes was not an array; using initial prizes.');
+    }
+    return [];
+  }
+  return parsed;
 }
 
 function getWinnersFromPrizeRows(value: unknown): Winner[] {
@@ -494,7 +501,8 @@ function parsePrizes(value: unknown): Prize[] {
     return INITIAL_PRIZES;
   }
   if (!parsedPrizes.every(isPrize)) {
-    throw new Error('Supabase returned invalid draw_settings.prizes data.');
+    console.warn('draw_settings.prizes contained invalid entries; using initial prizes.');
+    return INITIAL_PRIZES;
   }
   return parsedPrizes
     .map((entry) => {
