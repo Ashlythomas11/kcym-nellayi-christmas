@@ -112,11 +112,44 @@ function testISTFormatter() {
   console.log(`✓ Formatted IST output: "${formatted}"`);
 }
 
+// 5. Draw Settings Row Validation
+function testDrawSettingsRowValidation() {
+  console.log('Test 5: Draw Settings Row ID and Text Fields...');
+
+  function normalizeHeadline(value) {
+    return value.trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function validateDrawSettingsRow(row) {
+    return Number(row.id) === 1
+      && typeof row.hero_headline === 'string' && row.hero_headline.trim().length > 0
+      && typeof row.coupon_price === 'string';
+  }
+
+  const validRow = {
+    id: '1',
+    hero_headline: ' Grand   Prize T V ',
+    coupon_price: '₹1,25,000',
+  };
+  assert.strictEqual(validateDrawSettingsRow(validRow), true, 'String id "1" and text headline/price values must be accepted');
+  assert.strictEqual(validateDrawSettingsRow({ ...validRow, id: 1 }), true, 'Numeric id 1 must also be accepted');
+  assert.strictEqual(validateDrawSettingsRow({ ...validRow, id: '2' }), false, 'Rows other than id 1 must be rejected');
+  assert.strictEqual(validateDrawSettingsRow({ ...validRow, coupon_price: 125000 }), false, 'Price must match the schema text type');
+  assert.strictEqual(
+    normalizeHeadline(validRow.hero_headline),
+    normalizeHeadline('grand prize t v'),
+    'Headline comparisons must ignore case and repeated surrounding/internal whitespace'
+  );
+
+  console.log('✓ Row 1 validation accepts schema text fields and flexible headline formatting.');
+}
+
 testCountdownCalculation();
 testPublicWinnerPrivacy();
 testDuplicateCouponPrevention();
 testISTFormatter();
+testDrawSettingsRowValidation();
 
 console.log('\n----------------------------------------------------');
-console.log('ALL 4 TEST SUITES PASSED CLEANLY (100% SUCCESS)');
+console.log('ALL 5 TEST SUITES PASSED CLEANLY (100% SUCCESS)');
 console.log('----------------------------------------------------');

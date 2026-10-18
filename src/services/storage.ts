@@ -84,6 +84,48 @@ export function getDrawSettings(): DrawSettings {
   return INITIAL_DRAW_SETTINGS;
 }
 
+export function mapDrawSettingsRow(data: Record<string, unknown>): DrawSettings {
+  return {
+    ...INITIAL_DRAW_SETTINGS,
+    drawDateIST: typeof data.draw_date_ist === 'string' ? data.draw_date_ist : INITIAL_DRAW_SETTINGS.drawDateIST,
+    timezone: typeof data.timezone === 'string' ? data.timezone : INITIAL_DRAW_SETTINGS.timezone,
+    isPublished: typeof data.is_published === 'boolean' ? data.is_published : INITIAL_DRAW_SETTINGS.isPublished,
+    publishedAt: typeof data.published_at === 'string' ? data.published_at : null,
+    publishedBy: typeof data.published_by === 'string' ? data.published_by : null,
+    drawVenue: typeof data.draw_venue === 'string' ? data.draw_venue : INITIAL_DRAW_SETTINGS.drawVenue,
+    drawVenue_ml: typeof data.draw_venue_ml === 'string' ? data.draw_venue_ml : INITIAL_DRAW_SETTINGS.drawVenue_ml,
+    heroHeadline: typeof data.hero_headline === 'string' ? data.hero_headline : INITIAL_DRAW_SETTINGS.heroHeadline,
+    heroHeadline_ml: typeof data.hero_headline_ml === 'string' ? data.hero_headline_ml : INITIAL_DRAW_SETTINGS.heroHeadline_ml,
+    heroSubtitle: typeof data.hero_subtitle === 'string' ? data.hero_subtitle : INITIAL_DRAW_SETTINGS.heroSubtitle,
+    heroSubtitle_ml: typeof data.hero_subtitle_ml === 'string' ? data.hero_subtitle_ml : INITIAL_DRAW_SETTINGS.heroSubtitle_ml,
+    announcementText: typeof data.announcement_text === 'string' ? data.announcement_text : INITIAL_DRAW_SETTINGS.announcementText,
+    announcementText_ml: typeof data.announcement_text_ml === 'string' ? data.announcement_text_ml : INITIAL_DRAW_SETTINGS.announcementText_ml,
+    contactPhone: typeof data.contact_phone === 'string' ? data.contact_phone : INITIAL_DRAW_SETTINGS.contactPhone,
+    contactEmail: typeof data.contact_email === 'string' ? data.contact_email : INITIAL_DRAW_SETTINGS.contactEmail,
+    churchAddress: typeof data.church_address === 'string' ? data.church_address : INITIAL_DRAW_SETTINGS.churchAddress,
+    churchAddress_ml: typeof data.church_address_ml === 'string' ? data.church_address_ml : INITIAL_DRAW_SETTINGS.churchAddress_ml,
+    couponPrice: typeof data.coupon_price === 'string' ? data.coupon_price : INITIAL_DRAW_SETTINGS.couponPrice,
+  };
+}
+
+export async function fetchDrawSettingsFromSupabase(): Promise<DrawSettings | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('draw_settings')
+    .select('*')
+    .eq('id', '1')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to fetch draw settings from Supabase: ${error.message}`);
+  }
+  if (!data) return null;
+
+  return mapDrawSettingsRow(data);
+}
+
 export async function updateDrawSettings(settings: Partial<DrawSettings>, adminEmail: string): Promise<DrawSettings> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured. Draw settings were not saved.');
@@ -103,7 +145,7 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
   const { data, error } = await supabase
     .from('draw_settings')
     .upsert({
-      id: 1,
+      id: '1',
       draw_date_ist: updated.drawDateIST,
       timezone: updated.timezone,
       is_published: updated.isPublished,
@@ -127,7 +169,7 @@ export async function updateDrawSettings(settings: Partial<DrawSettings>, adminE
   if (error) {
     throw new Error(`Cloud save failed. Draw settings were not saved locally: ${error.message}`);
   }
-  if (data.id !== 1) {
+  if (Number(data.id) !== 1) {
     throw new Error(`Supabase returned unexpected draw settings row id ${data.id}.`);
   }
 
